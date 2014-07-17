@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"regexp"
 	"text/template"
 	"time"
 )
@@ -43,7 +42,6 @@ type Comment struct {
 
 const REPLY_INDENT = "    "
 
-var endOfLineRe = regexp.MustCompile("(?m)^")
 var commentTpl = template.Must(template.New("comment").Parse(
 	"\n" +
 		"[{{.Id}}] | {{.Author.DisplayName}} | {{.UpdatedDate}}\n" +
@@ -58,8 +56,8 @@ func (c Comment) String() string {
 
 	for _, reply := range c.Comments {
 		buf.WriteString("\n")
-		buf.WriteString(endOfLineRe.ReplaceAllLiteralString(
-			reply.String(), REPLY_INDENT))
+		buf.WriteString(
+			begOfLineRe.ReplaceAllString(reply.String(), "\n"+REPLY_INDENT))
 	}
 
 	return buf.String()

@@ -1,8 +1,12 @@
 package main
 
-import "strings"
+import (
+	"bytes"
+	"text/template"
+)
 
 type Diffs struct {
+	Path       string
 	Whitespace string
 	Diffs      []*Diff
 }
@@ -33,11 +37,30 @@ func (d Diffs) ForEachLines(callback func(*Diff, *Line)) {
 	}
 }
 
-func (d Diff) String() string {
-	res := make([]string, len(d.Hunks))
-	for i, hunk := range d.Hunks {
-		res[i] = hunk.String()
-	}
+var fileTpl = template.Must(template.New("file").Parse(
+	"\n" +
+		"+++ {{.Path}}\n" +
+		"--- {{.Path}}\n" +
+		"\n" +
+		"{{range .Diffs}}" +
+		"{{.}}" +
+		"{{end}}"))
 
-	return strings.Join(res, "\n")
+var diffTpl = template.Must(template.New("diff").Parse(
+	"{{range .Hunks}}" +
+		"{{.}}" +
+		"{{end}}"))
+
+func (d Diffs) String() string {
+	buf := bytes.NewBuffer([]byte{})
+	fileTpl.Execute(buf, d)
+
+	return buf.String()
+}
+
+func (d Diff) String() string {
+	buf := bytes.NewBuffer([]byte{})
+	diffTpl.Execute(buf, d)
+
+	return buf.String()
 }

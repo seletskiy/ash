@@ -44,5 +44,7 @@ func (pr *PullRequest) GetDiffs(path string) (*Diffs, error) {
 		}
 	})
 
+	diffs.Path = path
+
 	return &diffs, nil
 }

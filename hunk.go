@@ -1,6 +1,9 @@
 package main
 
-import "strings"
+import (
+	"bytes"
+	"text/template"
+)
 
 type Hunk struct {
 	SourceLine      int
@@ -11,11 +14,14 @@ type Hunk struct {
 	Segments        []*Segment
 }
 
-func (h Hunk) String() string {
-	res := make([]string, len(h.Segments))
-	for i, segment := range h.Segments {
-		res[i] = segment.String()
-	}
+var hunkTpl = template.Must(template.New("diff").Parse(
+	"{{range .Segments}}" +
+		"{{.}}" +
+		"{{end}}"))
 
-	return strings.Join(res, "\n")
+func (h Hunk) String() string {
+	buf := bytes.NewBuffer([]byte{})
+	hunkTpl.Execute(buf, h)
+
+	return buf.String()
 }

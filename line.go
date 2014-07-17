@@ -12,9 +12,10 @@ type Line struct {
 	Comments       []*Comment
 }
 
-func (l Line) String() string {
-	re := regexp.MustCompile("(?m)\n")
+var danglingSpacesRe = regexp.MustCompile("(?m) +$")
+var begOfLineRe = regexp.MustCompile("(?m)\n")
 
+func (l Line) String() string {
 	res := ""
 	if len(l.Comments) > 0 {
 		res = "\n---\n"
@@ -25,7 +26,8 @@ func (l Line) String() string {
 	}
 
 	if res != "" {
-		return l.Line + re.ReplaceAllLiteralString(res, "\n# ")
+		return l.Line + danglingSpacesRe.ReplaceAllString(
+			begOfLineRe.ReplaceAllString(res, "\n# "), "")
 	} else {
 		return l.Line
 	}

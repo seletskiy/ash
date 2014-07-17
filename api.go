@@ -1,15 +1,17 @@
-package gash
+package main
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
+	"time"
 
 	"github.com/bndr/gopencils"
 )
 
 type Diffs struct {
 	Whitespace string
-	Diffs      []Diff
+	Diffs      []*Diff
 }
 
 type Diff struct {
@@ -22,8 +24,8 @@ type Diff struct {
 		Parent string
 		Name   string
 	}
-	Hunks        []Hunk
-	LineComments []Comment
+	Hunks        []*Hunk
+	LineComments []*Comment
 }
 
 type Hunk struct {
@@ -31,14 +33,14 @@ type Hunk struct {
 	SourceSpan      int
 	DestinationLine int
 	DestinationSpan int
-	Truncated       string
-	Segments        []Segment
+	Truncated       bool
+	Segments        []*Segment
 }
 
 type Segment struct {
 	Type      string
 	Truncated bool
-	Lines     []Line
+	Lines     []*Line
 }
 
 type Line struct {
@@ -48,7 +50,7 @@ type Line struct {
 	Truncated      bool
 	ConflictMarker string
 	CommentIds     []int
-	Comments       []Comment
+	Comments       []*Comment
 }
 
 type Comment struct {
@@ -57,7 +59,7 @@ type Comment struct {
 	Text        string
 	CreatedDate int
 	UpdatedDate int
-	Comment     []Comment
+	Comments    []*Comment
 	Author      struct {
 		Name         string
 		EmailAddress string
@@ -110,14 +112,14 @@ func NewPullRequest(repo *Repo, id int) PullRequest {
 			repo.Project.Name,
 			repo.Name,
 			id,
-		), repo.Auth),
+		), &repo.Auth),
 	}
 }
 
 func (pr *PullRequest) GetDiffs(path string) (*Diffs, error) {
 	diffs := Diffs{}
 
-	_, err := pr.Resource.Res("diff").Id(path, diffs).Get()
+	_, err := pr.Resource.Res("diff").Id(path, &diffs).Get()
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +142,7 @@ func (d Diffs) ForEachLines(callback func(*Diff, *Line)) {
 		for _, hunk := range diff.Hunks {
 			for _, segment := range hunk.Segments {
 				for _, line := range segment.Lines {
-					callback(&diff, &line)
+					callback(diff, line)
 				}
 			}
 		}
@@ -148,7 +150,7 @@ func (d Diffs) ForEachLines(callback func(*Diff, *Line)) {
 }
 
 func (d Diff) String() string {
-	res := make(string{}, len(d.Hunks))
+	res := make([]string, len(d.Hunks))
 	for i, hunk := range d.Hunks {
 		res[i] = hunk.String()
 	}
@@ -157,7 +159,7 @@ func (d Diff) String() string {
 }
 
 func (h Hunk) String() string {
-	res := make(string{}, len(h.Segments))
+	res := make([]string, len(h.Segments))
 	for i, segment := range h.Segments {
 		res[i] = segment.String()
 	}
@@ -166,16 +168,16 @@ func (h Hunk) String() string {
 }
 
 func (s Segment) String() string {
-	res := make(string{}, len(s.Lines))
+	res := make([]string, len(s.Lines))
 	for i, line := range s.Lines {
 		operation := "?"
 		switch s.Type {
 		case "ADDED":
-			operation += "+"
+			operation = "+"
 		case "REMOVED":
-			operation += "-"
+			operation = "-"
 		case "CONTEXT":
-			operation += " "
+			operation = " "
 		}
 
 		res[i] = operation + line.String()
@@ -185,18 +187,37 @@ func (s Segment) String() string {
 }
 
 func (l Line) String() string {
+	re := regexp.MustCompile("(?m)\n")
+
 	res := ""
-	res += line.Line
 
-	comments := [len(line.Comments)]string{}
-	for i, comment := range line.Comments {
-		comments[i] = comment.String()
+	if len(l.Comments) > 0 {
+		res += "\n---\n\n"
 	}
-	res += strings.Join(comments, "\n")
 
-	return res
+	for _, comment := range l.Comments {
+		res += comment.String()
+	}
+
+	if res != "" {
+		return l.Line + re.ReplaceAllLiteralString(res, "\n# ")
+	} else {
+		return l.Line
+	}
 }
 
 func (c Comment) String() string {
-	return c.Text
+	re := regexp.MustCompile("(?m)^")
+
+	updatedAt := time.Unix(int64(c.UpdatedDate/1000), 0)
+
+	header := fmt.Sprintf("[%d] %s | %s", c.Id, c.Author.DisplayName,
+		updatedAt.Format(time.ANSIC))
+	current := header + "\n\n" + "" + c.Text
+	current += "\n\n---\n"
+	for _, reply := range c.Comments {
+		current += "\n" + re.ReplaceAllLiteralString(reply.String(), "    ")
+	}
+
+	return current
 }

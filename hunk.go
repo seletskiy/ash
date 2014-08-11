@@ -6,16 +6,18 @@ import (
 )
 
 type Hunk struct {
-	SourceLine      int
-	SourceSpan      int
-	DestinationLine int
-	DestinationSpan int
+	SourceLine      int64
+	SourceSpan      int64
+	DestinationLine int64
+	DestinationSpan int64
 	Truncated       bool
 	Segments        []*Segment
 }
 
 var hunkTpl = template.Must(template.New("diff").Parse(
-	"{{range .Segments}}" +
+	"@@ -{{.SourceLine}},{{.SourceSpan}} " +
+		"+{{.DestinationLine}},{{.DestinationSpan}} @@\n" +
+		"{{range .Segments}}" +
 		"{{.}}" +
 		"{{end}}"))
 

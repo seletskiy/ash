@@ -1,1 +1,3 @@
 /ash
+*.out
+coverage.html

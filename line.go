@@ -8,7 +8,7 @@ type Line struct {
 	Line           string
 	Truncated      bool
 	ConflictMarker string
-	CommentIds     []int
+	CommentIds     []int64
 	Comments       []*Comment
 }
 
@@ -17,8 +17,9 @@ var begOfLineRe = regexp.MustCompile("(?m)\n")
 
 func (l Line) String() string {
 	res := ""
+
 	if len(l.Comments) > 0 {
-		res = "\n---\n"
+		res = "\n---"
 	}
 
 	for _, comment := range l.Comments {

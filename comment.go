@@ -13,10 +13,10 @@ func (u UnixTimestamp) String() string {
 }
 
 type Comment struct {
-	Id          int
+	Id          int64
 	Version     int
 	Text        string
-	CreatedDate int
+	CreatedDate UnixTimestamp
 	UpdatedDate UnixTimestamp
 	Comments    []*Comment
 	Author      struct {
@@ -38,26 +38,27 @@ type Comment struct {
 		Editable  bool
 		Deletable bool
 	}
+
+	Indent   int
+	Parented bool
 }
 
-const REPLY_INDENT = "    "
+const replyIndent = "    "
 
 var commentTpl = template.Must(template.New("comment").Parse(
-	"\n" +
+	"\n\n" +
 		"[{{.Id}}] | {{.Author.DisplayName}} | {{.UpdatedDate}}\n" +
 		"\n" +
 		"{{.Text}}\n" +
-		"\n" +
-		"---"))
+		"\n---"))
 
 func (c Comment) String() string {
 	buf := bytes.NewBuffer([]byte{})
 	commentTpl.Execute(buf, c)
 
 	for _, reply := range c.Comments {
-		buf.WriteString("\n")
 		buf.WriteString(
-			begOfLineRe.ReplaceAllString(reply.String(), "\n"+REPLY_INDENT))
+			begOfLineRe.ReplaceAllString(reply.String(), "\n"+replyIndent))
 	}
 
 	return buf.String()

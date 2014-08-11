@@ -1,6 +1,10 @@
 package main
 
-import "strings"
+const (
+	SegmentTypeContext = "CONTEXT"
+	SegmentTypeRemoved = "REMOVED"
+	SegmentTypeAdded   = "ADDED"
+)
 
 type Segment struct {
 	Type      string
@@ -9,20 +13,20 @@ type Segment struct {
 }
 
 func (s Segment) String() string {
-	res := make([]string, len(s.Lines))
-	for i, line := range s.Lines {
+	result := ""
+	for _, line := range s.Lines {
 		operation := "?"
 		switch s.Type {
-		case "ADDED":
+		case SegmentTypeAdded:
 			operation = "+"
-		case "REMOVED":
+		case SegmentTypeRemoved:
 			operation = "-"
-		case "CONTEXT":
+		case SegmentTypeContext:
 			operation = " "
 		}
 
-		res[i] = operation + line.String()
+		result += operation + line.String() + "\n"
 	}
 
-	return strings.Join(res, "\n")
+	return result
 }

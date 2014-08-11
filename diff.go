@@ -6,6 +6,8 @@ import (
 )
 
 type Diffs struct {
+	FromHash   string
+	ToHash     string
 	Path       string
 	Whitespace string
 	Diffs      []*Diff
@@ -38,18 +40,17 @@ func (d Diffs) ForEachLines(callback func(*Diff, *Line)) {
 }
 
 var fileTpl = template.Must(template.New("file").Parse(
-	"\n" +
-		"+++ {{.Path}}\n" +
-		"--- {{.Path}}\n" +
-		"\n" +
+	"{{with $parent := .}}" +
 		"{{range .Diffs}}" +
+		"--- {{$parent.Path}}\t{{$parent.FromHash}}\n" +
+		"+++ {{$parent.Path}}\t{{$parent.ToHash}}\n" +
 		"{{.}}" +
+		"{{else}}" +
+		"{{end}}" +
 		"{{end}}"))
 
 var diffTpl = template.Must(template.New("diff").Parse(
-	"{{range .Hunks}}" +
-		"{{.}}" +
-		"{{end}}"))
+	"{{range .Hunks}}{{.}}{{end}}"))
 
 func (d Diffs) String() string {
 	buf := bytes.NewBuffer([]byte{})

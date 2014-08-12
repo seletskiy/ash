@@ -11,12 +11,13 @@ import (
 )
 
 const (
-	stateStartOfFile  = "stateStartOfFile"
-	stateDiffHeader   = "stateDiffHeader"
-	stateHunkHeader   = "stateHunkHeader"
-	stateHunkBody     = "stateHunkBody"
-	stateComment      = "stateComment"
-	stateCommentDelim = "stateCommentDelim"
+	stateStartOfFile   = "stateStartOfFile"
+	stateDiffHeader    = "stateDiffHeader"
+	stateHunkHeader    = "stateHunkHeader"
+	stateHunkBody      = "stateHunkBody"
+	stateComment       = "stateComment"
+	stateCommentDelim  = "stateCommentDelim"
+	stateCommentHeader = "stateCommentHeader"
 )
 
 var (
@@ -30,15 +31,14 @@ var (
 )
 
 type parser struct {
-	state         string
-	diffs         Diffs
-	diff          *Diff
-	hunk          *Hunk
-	segment       *Segment
-	comment       *Comment
-	line          *Line
-	segmentType   string
-	commentsStack []*Comment
+	state       string
+	diffs       Diffs
+	diff        *Diff
+	hunk        *Hunk
+	segment     *Segment
+	comment     *Comment
+	line        *Line
+	segmentType string
 }
 
 func ParseDiff(r io.Reader) (Diffs, error) {
@@ -56,6 +56,7 @@ func ParseDiff(r io.Reader) (Diffs, error) {
 		//fmt.Printf("[%20s] -> ", p.state)
 		p.switchState(line)
 		p.createNodes(line)
+		p.locateNodes(line)
 		p.parseLine(line)
 		//fmt.Printf("[%20s] |%s\n", p.state, strings.TrimRight(line, "\n"))
 	}
@@ -71,6 +72,7 @@ func ParseDiff(r io.Reader) (Diffs, error) {
 }
 
 func (p *parser) switchState(line string) error {
+	inComment := false
 	switch p.state {
 	case stateStartOfFile:
 		switch line[0] {
@@ -85,7 +87,7 @@ func (p *parser) switchState(line string) error {
 	case stateHunkHeader:
 		p.state = stateHunkBody
 		fallthrough
-	case stateHunkBody, stateComment, stateCommentDelim:
+	case stateHunkBody, stateComment, stateCommentDelim, stateCommentHeader:
 		switch line[0] {
 		case ' ':
 			p.state = stateHunkBody
@@ -99,15 +101,20 @@ func (p *parser) switchState(line string) error {
 		case '@':
 			p.state = stateHunkHeader
 		case '#':
+			inComment = true
 			switch {
 			case reCommentDelim.MatchString(line):
 				p.state = stateCommentDelim
 			case reCommentHeader.MatchString(line):
-				fallthrough
+				p.state = stateCommentHeader
 			case reCommentText.MatchString(line):
 				p.state = stateComment
 			}
 		}
+	}
+
+	if !inComment {
+		p.comment = nil
 	}
 
 	return nil
@@ -131,18 +138,11 @@ func (p *parser) createNodes(line string) error {
 		switch {
 		case reCommentDelim.MatchString(line):
 			// noop
-		case reCommentHeader.MatchString(line):
-			// noop
+		//case reCommentHeader.MatchString(line):
+		//    // noop
 		case reCommentText.MatchString(line):
-			if !p.comment.Parented && strings.TrimSpace(line) != "#" {
-				p.comment.Parented = true
-				p.diff.LineComments = append(p.diff.LineComments, p.comment)
-				parent := p.findParentComment(p.comment)
-				if parent != nil {
-					parent.Comments = append(parent.Comments, p.comment)
-				} else {
-					p.line.Comments = append(p.line.Comments, p.comment)
-				}
+			if p.comment == nil {
+				p.comment = &Comment{}
 			}
 		}
 	case stateHunkBody:
@@ -151,8 +151,72 @@ func (p *parser) createNodes(line string) error {
 			p.hunk.Segments = append(p.hunk.Segments, p.segment)
 		}
 
-		p.line = &Line{Line: line[1 : len(line)-1]}
+		p.line = &Line{}
 		p.segment.Lines = append(p.segment.Lines, p.line)
+	}
+
+	return nil
+}
+
+func (p *parser) locateNodes(line string) error {
+	switch p.state {
+	case stateComment:
+		p.locateComment(line)
+	case stateHunkBody:
+		p.locateLine(line)
+	}
+
+	return nil
+}
+
+func (p *parser) locateComment(line string) error {
+	if p.comment.Parented || strings.TrimSpace(line) == "#" {
+		return nil
+	}
+
+	p.diff.LineComments = append(p.diff.LineComments, p.comment)
+	switch p.segment.Type {
+	case SegmentTypeContext:
+		p.comment.Anchor.LineType = SegmentTypeContext
+		p.comment.Anchor.Line = p.line.Source
+	case SegmentTypeRemoved:
+		p.comment.Anchor.LineType = SegmentTypeRemoved
+		p.comment.Anchor.Line = p.line.Source
+	case SegmentTypeAdded:
+		p.comment.Anchor.LineType = SegmentTypeAdded
+		p.comment.Anchor.Line = p.line.Destination
+	}
+	p.comment.Parented = true
+	parent := p.findParentComment(p.comment)
+	if parent != nil {
+		parent.Comments = append(parent.Comments, p.comment)
+	} else {
+		p.line.Comments = append(p.line.Comments, p.comment)
+	}
+
+	return nil
+}
+
+func (p *parser) locateLine(line string) error {
+	sourceOffset := p.hunk.SourceLine - 1
+	destinationOffset := p.hunk.DestinationLine - 1
+	if len(p.hunk.Segments) > 1 {
+		prevSegment := p.hunk.Segments[len(p.hunk.Segments)-2]
+		lastLine := prevSegment.Lines[len(prevSegment.Lines)-1]
+		sourceOffset = lastLine.Source
+		destinationOffset = lastLine.Destination
+	}
+	hunkLength := int64(len(p.segment.Lines))
+	switch p.segment.Type {
+	case SegmentTypeContext:
+		p.line.Source = sourceOffset + hunkLength
+		p.line.Destination = destinationOffset + hunkLength
+	case SegmentTypeAdded:
+		p.line.Source = sourceOffset
+		p.line.Destination = destinationOffset + hunkLength
+	case SegmentTypeRemoved:
+		p.line.Source = sourceOffset + hunkLength
+		p.line.Destination = destinationOffset
 	}
 
 	return nil
@@ -168,6 +232,8 @@ func (p *parser) parseLine(line string) error {
 		p.parseHunkBody(line)
 	case stateComment:
 		p.parseComment(line)
+	case stateCommentHeader:
+		p.parseCommentHeader(line)
 	}
 
 	return nil
@@ -200,48 +266,39 @@ func (p *parser) parseHunkHeader(line string) error {
 }
 
 func (p *parser) parseHunkBody(line string) error {
-	p.commentsStack = p.commentsStack[:0]
+	p.line.Line = line[1 : len(line)-1]
+	return nil
+}
+
+func (p *parser) parseCommentHeader(line string) error {
+	matches := reCommentHeader.FindStringSubmatch(line)
+	p.comment.Author.DisplayName = strings.TrimSpace(matches[2])
+	p.comment.Id, _ = strconv.ParseInt(matches[1], 10, 16)
+	updatedDate, _ := time.ParseInLocation(time.ANSIC,
+		strings.TrimSpace(matches[3]),
+		time.Local)
+	p.comment.UpdatedDate = UnixTimestamp(updatedDate.Unix() * 1000)
+	p.comment.Indent = getIndentSize(line)
+
 	return nil
 }
 
 func (p *parser) parseComment(line string) error {
-	currentComment := p.comment
-	switch {
-	case reCommentHeader.MatchString(line):
-		parseCommentHeader(currentComment, line)
-		p.commentsStack = append(p.commentsStack[:0],
-			append([]*Comment{currentComment}, p.commentsStack...)...)
-	case reCommentText.MatchString(line):
-		parseCommentText(currentComment, line)
-	}
+	matches := reCommentText.FindStringSubmatch(line)
+	p.comment.Text += "\n" + strings.Trim(matches[1], " \t")
 
 	return nil
 }
 
 func (p *parser) findParentComment(comment *Comment) *Comment {
-	for _, c := range p.commentsStack {
+	for i := len(p.diff.LineComments) - 1; i >= 0; i-- {
+		c := p.diff.LineComments[i]
 		if comment.Indent > c.Indent {
 			return c
 		}
 	}
 
 	return nil
-}
-
-func parseCommentHeader(comment *Comment, line string) {
-	matches := reCommentHeader.FindStringSubmatch(line)
-	comment.Author.DisplayName = strings.TrimSpace(matches[2])
-	comment.Id, _ = strconv.ParseInt(matches[1], 10, 16)
-	updatedDate, _ := time.ParseInLocation(time.ANSIC,
-		strings.TrimSpace(matches[3]),
-		time.Local)
-	comment.UpdatedDate = UnixTimestamp(updatedDate.Unix() * 1000)
-	comment.Indent = getIndentSize(line)
-}
-
-func parseCommentText(comment *Comment, line string) {
-	matches := reCommentText.FindStringSubmatch(line)
-	comment.Text += "\n" + strings.Trim(matches[1], " \t")
 }
 
 func getIndentSize(line string) int {

@@ -3,8 +3,8 @@ package main
 import "regexp"
 
 type Line struct {
-	Destination    int
-	Source         int
+	Destination    int64
+	Source         int64
 	Line           string
 	Truncated      bool
 	ConflictMarker string

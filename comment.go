@@ -31,7 +31,7 @@ type Comment struct {
 	Anchor struct {
 		FromHash string
 		ToHash   string
-		Line     int
+		Line     int64
 		LineType string
 	}
 	PermittedOperations struct {

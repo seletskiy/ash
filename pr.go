@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/bndr/gopencils"
+	"github.com/seletskiy/godiff"
 )
 
 type PullRequest struct {
@@ -26,17 +27,17 @@ func NewPullRequest(repo *Repo, id int) PullRequest {
 	}
 }
 
-func (pr *PullRequest) GetDiffs(path string) (*Diffs, error) {
-	diffs := Diffs{}
+func (pr *PullRequest) GetReview(path string) (*Review, error) {
+	review := &Review{godiff.Changeset{}}
 
-	_, err := pr.Resource.Res("diff").Id(path, &diffs).Get()
+	_, err := pr.Resource.Res("diff").Id(path, &review.changeset).Get()
 	if err != nil {
 		return nil, err
 	}
 
-	diffs.ForEachLines(func(diff *Diff, line *Line) {
+	review.changeset.ForEachLine(func(diff *godiff.Diff, line *godiff.Line) {
 		for _, id := range line.CommentIds {
-			for _, c := range (*diff).LineComments {
+			for _, c := range diff.LineComments {
 				if c.Id == id {
 					line.Comments = append(line.Comments, c)
 				}
@@ -44,7 +45,14 @@ func (pr *PullRequest) GetDiffs(path string) (*Diffs, error) {
 		}
 	})
 
-	diffs.Path = path
+	review.changeset.Path = path
 
-	return &diffs, nil
+	return review, nil
 }
+
+//func (pr *PullRequest) ApplyChange(change ReviewChange) error {
+//    switch change.Change {
+//    case CommentAdded:
+//    }
+//    return nil
+//}

@@ -18,7 +18,7 @@ func NewPullRequest(repo *Repo, id int) PullRequest {
 		Repo: repo,
 		Id:   id,
 		Resource: gopencils.Api(fmt.Sprintf(
-			"http://%s/rest/api/1.0/projects/%s/repos/%s/pull-requests/%d",
+			"http://%s/rest/api/1.0/%s/repos/%s/pull-requests/%d",
 			repo.Host,
 			repo.Project.Name,
 			repo.Name,
@@ -50,9 +50,43 @@ func (pr *PullRequest) GetReview(path string) (*Review, error) {
 	return review, nil
 }
 
-//func (pr *PullRequest) ApplyChange(change ReviewChange) error {
-//    switch change.Change {
-//    case CommentAdded:
-//    }
-//    return nil
-//}
+func (pr *PullRequest) ApplyChange(change ReviewChange) error {
+	if _, ok := change["id"]; ok {
+		if _, ok := change["text"]; ok {
+			return pr.modifyComment(change)
+		} else {
+			return pr.removeComment(change)
+		}
+	} else {
+		return pr.addComment(change)
+	}
+
+	panic(fmt.Sprintf("unexpected <change> argument: %s", change))
+	return nil
+}
+
+func (pr *PullRequest) addComment(change ReviewChange) error {
+	_, err := pr.Resource.Res("comments").Post(change)
+
+	return err
+}
+
+func (pr *PullRequest) modifyComment(change ReviewChange) error {
+	query := map[string]string{
+		"version": fmt.Sprint(change["version"]),
+	}
+	_, err := pr.Resource.Res("comments").Id(fmt.Sprint(change["id"])).
+		SetQuery(query).Put(change)
+
+	return err
+}
+
+func (pr *PullRequest) removeComment(change ReviewChange) error {
+	query := map[string]string{
+		"version": fmt.Sprint(change["version"]),
+	}
+	_, err := pr.Resource.Res("comments").Id(fmt.Sprint(change["id"])).
+		SetQuery(query).Delete()
+
+	return err
+}

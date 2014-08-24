@@ -8,17 +8,18 @@ import (
 	"os/exec"
 
 	"github.com/bndr/gopencils"
-	"github.com/seletskiy/godiff"
 )
 
 func main() {
 	auth := gopencils.BasicAuth{os.Args[1], os.Args[2]}
 	api := Api{"git.rn", auth}
-	project := Project{&api, "OAPP"}
-	repo := Repo{&project, "deployer"}
+	project := Project{&api, "users/s.seletskiy"}
+	repo := Repo{&project, "lecture-go"}
+
+	path := "chat/main.go"
 
 	pullRequest := NewPullRequest(&repo, 1)
-	initialReview, err := pullRequest.GetReview("libdeploy/conf.go")
+	initialReview, err := pullRequest.GetReview(path)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -40,16 +41,12 @@ func main() {
 		log.Fatal(err)
 	}
 
-	modifiedReviewFile.Seek(0, os.SEEK_SET)
-	modifiedReview, _ := godiff.ParseDiff(modifiedReviewFile)
+	modifiedReviewFile.Close()
 
-	fmt.Println(modifiedReview)
+	modifiedReview, _ := ParseReviewFile(modifiedReviewFile.Name())
 
-	//changes := initialReview.Compare(modifiedReview)
-	//for _, change := range changes {
-	//    switch change.Change {
-	//    case CommentAdded:
-
-	//    }
-	//}
+	changes := initialReview.Compare(modifiedReview)
+	for _, change := range changes {
+		pullRequest.ApplyChange(change)
+	}
 }

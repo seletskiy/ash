@@ -23,7 +23,8 @@ func TestCompare(t *testing.T) {
 					"anchor": map[string]interface{}{
 						"line":     int64(3),
 						"lineType": godiff.SegmentTypeAdded,
-						"fromFile": "/tmp/a",
+						"path":     "/tmp/a",
+						"srcPath":  "/tmp/a",
 					},
 				},
 			},
@@ -33,7 +34,8 @@ func TestCompare(t *testing.T) {
 			"_test/without_comments.diff",
 			[]ReviewChange{
 				{
-					"id": int64(1234),
+					"id":      int64(1234),
+					"version": 1,
 				},
 			},
 		},
@@ -54,7 +56,8 @@ func TestCompare(t *testing.T) {
 			"_test/with_one_stored_comment.diff",
 			[]ReviewChange{
 				{
-					"id": int64(1235),
+					"id":      int64(1235),
+					"version": 1,
 				},
 			},
 		},
@@ -63,8 +66,9 @@ func TestCompare(t *testing.T) {
 			"_test/with_one_modified_nested_comment.diff",
 			[]ReviewChange{
 				{
-					"text": "bla2",
-					"id":   int64(1235),
+					"text":    "bla2",
+					"id":      int64(1235),
+					"version": 1,
 				},
 			},
 		},

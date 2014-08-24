@@ -72,7 +72,8 @@ func matchCommentChange(
 				"anchor": map[string]interface{}{
 					"line":     comment.Anchor.Line,
 					"lineType": comment.Anchor.LineType,
-					"fromFile": comment.Anchor.SrcPath,
+					"path":     comment.Anchor.Path,
+					"srcPath":  comment.Anchor.SrcPath,
 				},
 			}
 		}
@@ -82,8 +83,9 @@ func matchCommentChange(
 				comments[i] = nil
 				if c.Text != comment.Text {
 					return ReviewChange{
-						"text": comment.Text,
-						"id":   comment.Id,
+						"text":    comment.Text,
+						"id":      comment.Id,
+						"version": comment.Version,
 					}
 				}
 			}
@@ -98,7 +100,10 @@ func markRemovedComments(
 ) []ReviewChange {
 	for _, deleted := range comments {
 		if deleted != nil {
-			changes = append(changes, ReviewChange{"id": deleted.Id})
+			changes = append(changes, ReviewChange{
+				"id":      deleted.Id,
+				"version": deleted.Version,
+			})
 		}
 	}
 

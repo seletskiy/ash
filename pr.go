@@ -66,7 +66,15 @@ func (pr *PullRequest) ApplyChange(change ReviewChange) error {
 }
 
 func (pr *PullRequest) addComment(change ReviewChange) error {
-	_, err := pr.Resource.Res("comments").Post(change)
+	resp := godiff.Comment{}
+
+	_, err := pr.Resource.Res("comments", &resp).Post(change)
+
+	if resp.Id > 0 {
+		fmt.Printf("[debug] comment added: %d\n", resp.Id)
+	} else {
+		fmt.Printf("[debug] fail to add comment:\n%s\n", change)
+	}
 
 	return err
 }
@@ -75,8 +83,17 @@ func (pr *PullRequest) modifyComment(change ReviewChange) error {
 	query := map[string]string{
 		"version": fmt.Sprint(change["version"]),
 	}
-	_, err := pr.Resource.Res("comments").Id(fmt.Sprint(change["id"])).
+
+	resp := godiff.Comment{}
+	_, err := pr.Resource.Res("comments").
+		Id(fmt.Sprint(change["id"]), &resp).
 		SetQuery(query).Put(change)
+
+	if resp.Id > 0 {
+		fmt.Printf("[debug] comment modified: %d\n", resp.Id)
+	} else {
+		fmt.Printf("[debug] fail to modify comment:\n%s\n", change)
+	}
 
 	return err
 }
@@ -85,8 +102,13 @@ func (pr *PullRequest) removeComment(change ReviewChange) error {
 	query := map[string]string{
 		"version": fmt.Sprint(change["version"]),
 	}
-	_, err := pr.Resource.Res("comments").Id(fmt.Sprint(change["id"])).
+
+	resp := make(map[string]interface{})
+
+	_, err := pr.Resource.Res("comments").Id(fmt.Sprint(change["id"]), &resp).
 		SetQuery(query).Delete()
+
+	fmt.Printf("[debug] comment wasted: %d\n", change["id"])
 
 	return err
 }

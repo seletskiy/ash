@@ -10,7 +10,59 @@ type Review struct {
 	changeset godiff.Changeset
 }
 
-type ReviewChange map[string]interface{}
+type ReviewChange interface {
+	GetPayload() map[string]interface{}
+}
+
+type CommentAdded struct {
+	comment *godiff.Comment
+}
+
+func (c CommentAdded) GetPayload() map[string]interface{} {
+	return map[string]interface{}{
+		"text": c.comment.Text,
+		"anchor": map[string]interface{}{
+			"line":     c.comment.Anchor.Line,
+			"lineType": c.comment.Anchor.LineType,
+			"path":     c.comment.Anchor.Path,
+			"srcPath":  c.comment.Anchor.SrcPath,
+		},
+	}
+}
+
+type ReplyAdded struct {
+	comment *godiff.Comment
+	parent  *godiff.Comment
+}
+
+func (c ReplyAdded) GetPayload() map[string]interface{} {
+	return map[string]interface{}{
+		"text": c.comment.Text,
+		"parent": map[string]interface{}{
+			"id": c.parent.Id,
+		},
+	}
+}
+
+type CommentModified struct {
+	comment *godiff.Comment
+}
+
+func (c CommentModified) GetPayload() map[string]interface{} {
+	return map[string]interface{}{
+		"text":    c.comment.Text,
+		"id":      c.comment.Id,
+		"version": c.comment.Version,
+	}
+}
+
+type CommentRemoved struct {
+	comment *godiff.Comment
+}
+
+func (c CommentRemoved) GetPayload() map[string]interface{} {
+	return nil
+}
 
 func ParseReviewFile(path string) (*Review, error) {
 	file, err := os.Open(path)
@@ -60,33 +112,16 @@ func matchCommentChange(
 ) ReviewChange {
 	if comment.Id == 0 {
 		if parent != nil {
-			return ReviewChange{
-				"text": comment.Text,
-				"parent": map[string]interface{}{
-					"id": parent.Id,
-				},
-			}
+			return ReplyAdded{comment, parent}
 		} else {
-			return ReviewChange{
-				"text": comment.Text,
-				"anchor": map[string]interface{}{
-					"line":     comment.Anchor.Line,
-					"lineType": comment.Anchor.LineType,
-					"path":     comment.Anchor.Path,
-					"srcPath":  comment.Anchor.SrcPath,
-				},
-			}
+			return CommentAdded{comment}
 		}
 	} else {
 		for i, c := range comments {
 			if c != nil && c.Id == comment.Id {
 				comments[i] = nil
 				if c.Text != comment.Text {
-					return ReviewChange{
-						"text":    comment.Text,
-						"id":      comment.Id,
-						"version": comment.Version,
-					}
+					return CommentModified{comment}
 				}
 			}
 		}
@@ -100,10 +135,7 @@ func markRemovedComments(
 ) []ReviewChange {
 	for _, deleted := range comments {
 		if deleted != nil {
-			changes = append(changes, ReviewChange{
-				"id":      deleted.Id,
-				"version": deleted.Version,
-			})
+			changes = append(changes, CommentRemoved{deleted})
 		}
 	}
 

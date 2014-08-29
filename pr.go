@@ -7,6 +7,12 @@ import (
 	"github.com/seletskiy/godiff"
 )
 
+type unexpectedStatusCode int
+
+func (u unexpectedStatusCode) Error() string {
+	return fmt.Sprintf("unexpected status code from Stash: %d", u)
+}
+
 type PullRequest struct {
 	*Repo
 	Id       int
@@ -28,14 +34,32 @@ func NewPullRequest(repo *Repo, id int) PullRequest {
 }
 
 func (pr *PullRequest) GetReview(path string) (*Review, error) {
-	review := &Review{godiff.Changeset{}}
+	result := godiff.Changeset{}
 
-	_, err := pr.Resource.Res("diff").Id(path, &review.changeset).Get()
+	resp, err := pr.Resource.Res("diff").Id(path, &result).Get()
 	if err != nil {
 		return nil, err
 	}
 
-	review.changeset.ForEachLine(func(diff *godiff.Diff, line *godiff.Line) {
+	status := resp.Raw.StatusCode
+	switch status {
+	case 200:
+		// ok
+	case 400:
+		fallthrough
+	case 401:
+		fallthrough
+	case 404:
+		if len(result.Errors) > 0 {
+			return nil, result.Errors[0]
+		} else {
+			return nil, unexpectedStatusCode(status)
+		}
+	default:
+		return nil, unexpectedStatusCode(status)
+	}
+
+	result.ForEachLine(func(diff *godiff.Diff, line *godiff.Line) {
 		for _, id := range line.CommentIds {
 			for _, c := range diff.LineComments {
 				if c.Id == id {
@@ -45,9 +69,9 @@ func (pr *PullRequest) GetReview(path string) (*Review, error) {
 		}
 	})
 
-	review.changeset.Path = path
+	result.Path = path
 
-	return review, nil
+	return &Review{result}, nil
 }
 
 func (pr *PullRequest) ApplyChange(change ReviewChange) error {

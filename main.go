@@ -94,7 +94,7 @@ func main() {
 	pullRequest := NewPullRequest(&repo, int(pullRequestId))
 	initialReview, err := pullRequest.GetReview(path)
 	if err != nil {
-		fmt.Println(err)
+		log.Fatal(err)
 	}
 
 	if len(initialReview.changeset.Diffs) == 0 {

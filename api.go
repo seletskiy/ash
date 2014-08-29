@@ -16,3 +16,9 @@ type Repo struct {
 	*Project
 	Name string
 }
+
+type ApiError struct {
+	Errors []struct {
+		Message string
+	}
+}

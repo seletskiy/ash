@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 
 	"github.com/bndr/gopencils"
 	"github.com/seletskiy/godiff"
@@ -11,6 +12,12 @@ type unexpectedStatusCode int
 
 func (u unexpectedStatusCode) Error() string {
 	return fmt.Sprintf("unexpected status code from Stash: %d", u)
+}
+
+type stashApiError []byte
+
+func (s stashApiError) Error() string {
+	return string(s)
 }
 
 type PullRequest struct {
@@ -50,8 +57,9 @@ func (pr *PullRequest) GetReview(path string) (*Review, error) {
 	case 401:
 		fallthrough
 	case 404:
-		if len(result.Errors) > 0 {
-			return nil, result.Errors[0]
+		errorBody, _ := ioutil.ReadAll(resp.Raw.Body)
+		if len(errorBody) > 0 {
+			return nil, stashApiError(errorBody)
 		} else {
 			return nil, unexpectedStatusCode(status)
 		}
@@ -59,26 +67,42 @@ func (pr *PullRequest) GetReview(path string) (*Review, error) {
 		return nil, unexpectedStatusCode(status)
 	}
 
-	result.ForEachLine(func(diff *godiff.Diff, line *godiff.Line) {
-		for _, id := range line.CommentIds {
-			for _, c := range diff.LineComments {
-				if c.Id == id {
-					line.Comments = append(line.Comments, c)
+	// TODO: refactor block
+	result.ForEachLine(
+		func(diff *godiff.Diff, _ *godiff.Hunk, _ *godiff.Segment, line *godiff.Line) {
+			for _, id := range line.CommentIds {
+				for _, c := range diff.LineComments {
+					if c.Id == id {
+						line.Comments = append(line.Comments, c)
+					}
 				}
 			}
-		}
-	})
+		})
 
 	result.Path = path
 
 	return &Review{result}, nil
 }
 
+func (pr *PullRequest) GetActivities() (ReviewActivities, error) {
+	query := map[string]string{
+		"limit": "25",
+	}
+
+	activities := ReviewActivities{}
+	_, err := pr.Resource.Res("activities", &activities).Get(query)
+	if err != nil {
+		return nil, err
+	}
+
+	return activities, nil
+}
+
 func (pr *PullRequest) ApplyChange(change ReviewChange) error {
 	switch c := change.(type) {
 	case ReplyAdded:
 		pr.addComment(c)
-	case CommentAdded:
+	case LineCommentAdded:
 		pr.addComment(c)
 	case CommentRemoved:
 		pr.removeComment(c)

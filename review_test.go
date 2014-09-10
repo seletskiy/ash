@@ -64,6 +64,15 @@ func TestCompare(t *testing.T) {
 				},
 			},
 		},
+		{
+			"_test/without_comments.diff",
+			"_test/with_one_new_top_level_comment.diff",
+			[]map[string]interface{}{
+				{
+					"text": "hello there",
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

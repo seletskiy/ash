@@ -12,6 +12,7 @@ import (
 
 	"github.com/bndr/gopencils"
 	"github.com/docopt/docopt-go"
+	"github.com/seletskiy/godiff"
 )
 
 var (
@@ -92,6 +93,23 @@ func main() {
 	path := args["<file-name>"].(string)
 
 	pullRequest := NewPullRequest(&repo, int(pullRequestId))
+
+	activities, _ := pullRequest.GetActivities()
+	tmp, err := ioutil.TempFile(os.TempDir(), "review")
+	WriteActivities(activities, tmp)
+	tmp.Sync()
+	tmp.Seek(0, os.SEEK_SET)
+
+	activities, err = ReadActivities(tmp)
+
+	godiff.WriteChangeset(activities[0].(godiff.Changeset), os.Stdout)
+
+	//log.Printf("%#v", activities.changeset)
+
+	//log.Printf("%#v %#v", err, activities)
+
+	os.Exit(1)
+
 	initialReview, err := pullRequest.GetReview(path)
 	if err != nil {
 		log.Fatal(err)
@@ -107,7 +125,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	modifiedReviewFile.WriteString(initialReview.String())
+	WriteReview(initialReview, modifiedReviewFile)
+	//modifiedReviewFile.WriteString(initialReview.String())
 	modifiedReviewFile.Sync()
 
 	editorCmd := exec.Command(os.Getenv("EDITOR"), modifiedReviewFile.Name())

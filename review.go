@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io"
 	"os"
 
 	"github.com/seletskiy/godiff"
@@ -14,11 +15,32 @@ type ReviewChange interface {
 	GetPayload() map[string]interface{}
 }
 
-type CommentAdded struct {
+type LineCommentAdded struct {
 	comment *godiff.Comment
 }
 
-func (c CommentAdded) GetPayload() map[string]interface{} {
+type FileCommentAdded struct {
+	comment *godiff.Comment
+}
+
+type ReviewCommentAdded struct {
+	comment *godiff.Comment
+}
+
+type ReplyAdded struct {
+	comment *godiff.Comment
+	parent  *godiff.Comment
+}
+
+type CommentModified struct {
+	comment *godiff.Comment
+}
+
+type CommentRemoved struct {
+	comment *godiff.Comment
+}
+
+func (c LineCommentAdded) GetPayload() map[string]interface{} {
 	return map[string]interface{}{
 		"text": c.comment.Text,
 		"anchor": map[string]interface{}{
@@ -30,9 +52,20 @@ func (c CommentAdded) GetPayload() map[string]interface{} {
 	}
 }
 
-type ReplyAdded struct {
-	comment *godiff.Comment
-	parent  *godiff.Comment
+func (c FileCommentAdded) GetPayload() map[string]interface{} {
+	return map[string]interface{}{
+		"text": c.comment.Text,
+		"anchor": map[string]interface{}{
+			"path":    c.comment.Anchor.Path,
+			"srcPath": c.comment.Anchor.SrcPath,
+		},
+	}
+}
+
+func (c ReviewCommentAdded) GetPayload() map[string]interface{} {
+	return map[string]interface{}{
+		"text": c.comment.Text,
+	}
 }
 
 func (c ReplyAdded) GetPayload() map[string]interface{} {
@@ -44,20 +77,12 @@ func (c ReplyAdded) GetPayload() map[string]interface{} {
 	}
 }
 
-type CommentModified struct {
-	comment *godiff.Comment
-}
-
 func (c CommentModified) GetPayload() map[string]interface{} {
 	return map[string]interface{}{
 		"text":    c.comment.Text,
 		"id":      c.comment.Id,
 		"version": c.comment.Version,
 	}
-}
-
-type CommentRemoved struct {
-	comment *godiff.Comment
 }
 
 func (c CommentRemoved) GetPayload() map[string]interface{} {
@@ -72,7 +97,7 @@ func ParseReviewFile(path string) (*Review, error) {
 
 	defer file.Close()
 
-	changeset, err := godiff.ParseDiff(file)
+	changeset, err := godiff.ReadChangeset(file)
 	if err != nil {
 		return nil, err
 	}
@@ -80,8 +105,8 @@ func ParseReviewFile(path string) (*Review, error) {
 	return &Review{changeset}, nil
 }
 
-func (r *Review) String() string {
-	return r.changeset.String()
+func WriteReview(review *Review, writer io.Writer) error {
+	return godiff.WriteChangeset(review.changeset, writer)
 }
 
 func (current *Review) Compare(another *Review) []ReviewChange {
@@ -114,7 +139,15 @@ func matchCommentChange(
 		if parent != nil {
 			return ReplyAdded{comment, parent}
 		} else {
-			return CommentAdded{comment}
+			if comment.Anchor.Line == 0 {
+				if comment.Anchor.Path == "" {
+					return ReviewCommentAdded{comment}
+				} else {
+					return FileCommentAdded{comment}
+				}
+			} else {
+				return LineCommentAdded{comment}
+			}
 		}
 	} else {
 		for i, c := range comments {

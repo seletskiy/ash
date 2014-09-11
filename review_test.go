@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"os"
 	"reflect"
 	"testing"
 
@@ -94,14 +95,25 @@ func TestCompare(t *testing.T) {
 }
 
 func compareTwoReviews(origFile, compareFile string) []ReviewChange {
-	a, err := ParseReviewFile(origFile)
+	a, err := parseReviewFile(origFile)
 	if err != nil {
 		log.Fatal(err)
 	}
-	b, err := ParseReviewFile(compareFile)
+	b, err := parseReviewFile(compareFile)
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	return a.Compare(b)
+}
+
+func parseReviewFile(path string) (*Review, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+
+	defer file.Close()
+
+	return ReadReview(file)
 }

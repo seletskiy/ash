@@ -12,7 +12,6 @@ import (
 
 	"github.com/bndr/gopencils"
 	"github.com/docopt/docopt-go"
-	"github.com/seletskiy/godiff"
 )
 
 var (
@@ -43,7 +42,7 @@ After you finish your edits, just save file and exit from editor. Ash will
 apply all changes made to the review.
 
 Usage:
-  ash [options] review <pull-request-url> <file-name>
+  ash [options] review <pull-request-url> [file-name]
   ash -h | --help
 
 Options:
@@ -90,46 +89,62 @@ func main() {
 	project := Project{&api, projectName}
 	repo := Repo{&project, repoName}
 
-	path := args["<file-name>"].(string)
+	path := ""
+	if args["[file-name]"] != nil {
+		path = args["[file-name]"].(string)
+	}
 
 	pullRequest := NewPullRequest(&repo, int(pullRequestId))
 
-	activities, _ := pullRequest.GetActivities()
-	tmp, err := ioutil.TempFile(os.TempDir(), "review")
-	WriteActivities(activities, tmp)
-	tmp.Sync()
-	tmp.Seek(0, os.SEEK_SET)
+	//activities, _ := pullRequest.GetActivities()
+	//a := activities.Review.Compare(activities2)
+	//log.Printf("%#v", a)
 
-	activities, err = ReadActivities(tmp)
+	//os.Exit(1)
 
-	godiff.WriteChangeset(activities[0].(godiff.Changeset), os.Stdout)
+	var review *Review
+	var err error
 
-	//log.Printf("%#v", activities.changeset)
+	if path == "" {
+		review, err = pullRequest.GetActivities()
+	} else {
+		review, err = pullRequest.GetReview(path)
+	}
 
-	//log.Printf("%#v %#v", err, activities)
-
-	os.Exit(1)
-
-	initialReview, err := pullRequest.GetReview(path)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	if len(initialReview.changeset.Diffs) == 0 {
+	if len(review.changeset.Diffs) == 0 {
 		fmt.Println("Specified file is not found in pull request.")
 		os.Exit(1)
 	}
 
-	modifiedReviewFile, err := ioutil.TempFile(os.TempDir(), "review")
+	changes, err := editReviewInEditor(review)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	WriteReview(initialReview, modifiedReviewFile)
-	//modifiedReviewFile.WriteString(initialReview.String())
-	modifiedReviewFile.Sync()
+	for _, change := range changes {
+		pullRequest.ApplyChange(change)
+	}
+}
 
-	editorCmd := exec.Command(os.Getenv("EDITOR"), modifiedReviewFile.Name())
+func reviewFile(pr PullRequest, path string) (*Review, error) {
+	return pr.GetReview(path)
+}
+
+func editReviewInEditor(reviewToEdit *Review) ([]ReviewChange, error) {
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "review")
+	defer func() {
+		tmpFile.Close()
+		os.Remove(tmpFile.Name())
+	}()
+
+	WriteReview(reviewToEdit, tmpFile)
+	tmpFile.Sync()
+
+	editorCmd := exec.Command(os.Getenv("EDITOR"), tmpFile.Name())
 	editorCmd.Stdin = os.Stdin
 	editorCmd.Stdout = os.Stdout
 	editorCmd.Stderr = os.Stderr
@@ -138,14 +153,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	modifiedReviewFile.Close()
+	tmpFile.Seek(0, os.SEEK_SET)
 
-	modifiedReview, _ := ParseReviewFile(modifiedReviewFile.Name())
-
-	changes := initialReview.Compare(modifiedReview)
-	for _, change := range changes {
-		pullRequest.ApplyChange(change)
+	editedReview, err := ReadReview(tmpFile)
+	if err != nil {
+		return nil, err
 	}
+
+	return reviewToEdit.Compare(editedReview), nil
 }
 
 func mergeArgsWithConfig(path string) []string {

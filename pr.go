@@ -84,18 +84,18 @@ func (pr *PullRequest) GetReview(path string) (*Review, error) {
 	return &Review{result}, nil
 }
 
-func (pr *PullRequest) GetActivities() (ReviewActivities, error) {
+func (pr *PullRequest) GetActivities() (*Review, error) {
 	query := map[string]string{
 		"limit": "25",
 	}
 
-	activities := ReviewActivities{}
+	activities := ReviewActivity{}
 	_, err := pr.Resource.Res("activities", &activities).Get(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return activities, nil
+	return &Review{activities.Changeset}, nil
 }
 
 func (pr *PullRequest) ApplyChange(change ReviewChange) error {

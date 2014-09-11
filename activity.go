@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"io"
 	"log"
 	"text/template"
 
@@ -35,30 +34,19 @@ var rescopedTpl = template.Must(
 {{end}}
 `)))
 
-type ReviewActivity interface{}
-type ReviewActivities []ReviewActivity
-
-type ReviewCommented struct {
-	Comment       *godiff.Comment
-	CommentAnchor *godiff.CommentAnchor
-	Diff          *godiff.Diff
+type ReviewActivity struct {
+	godiff.Changeset
 }
 
-type ReviewRescoped struct {
-	CreatedDate      int64
-	FromHash         string
-	PreviousFromHash string
-	PreviousToHash   string
-	ToHash           string
-	Added            struct {
-		Changesets []RescopedChangeset
-	}
-	Removed struct {
-		Changesets []RescopedChangeset
-	}
+type reviewCommented struct {
+	diff *godiff.Diff
 }
 
-type RescopedChangeset struct {
+type reviewRescoped struct {
+	diff *godiff.Diff
+}
+
+type rescopedChangeset struct {
 	CreatedDate int64
 	Id          string
 	DisplayId   string
@@ -71,17 +59,11 @@ type RescopedChangeset struct {
 	Message string
 }
 
-type ReviewMerged struct {
-	CreatedDate int64
-	Author      struct {
-		Id           int64
-		Name         string
-		EmailAddress string
-		DisplayName  string
-	}
+type reviewMerged struct {
+	diff *godiff.Diff
 }
 
-func (activities *ReviewActivities) UnmarshalJSON(data []byte) error {
+func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
 	response := struct {
 		Size       int
 		Limit      int
@@ -89,6 +71,7 @@ func (activities *ReviewActivities) UnmarshalJSON(data []byte) error {
 
 		Values []json.RawMessage `json:"values"`
 	}{}
+
 	err := json.Unmarshal(data, &response)
 
 	if err != nil {
@@ -102,144 +85,107 @@ func (activities *ReviewActivities) UnmarshalJSON(data []byte) error {
 			return err
 		}
 
-		var activity interface{} = nil
+		var diff *godiff.Diff
+
 		switch head.Action {
 		case "COMMENTED":
-			value := ReviewCommented{}
+			value := reviewCommented{}
 			err = json.Unmarshal(rawActivity, &value)
-			//value.BindComments()
-			activity = value
+			diff = value.diff
 		case "RESCOPED":
-			value := ReviewRescoped{}
+			value := reviewRescoped{}
 			err = json.Unmarshal(rawActivity, &value)
-			activity = value
+			diff = value.diff
 		case "MERGED":
-			value := ReviewMerged{}
+			value := reviewMerged{}
 			err = json.Unmarshal(rawActivity, &value)
-			activity = value
+			diff = value.diff
 		default:
 			log.Println("unknown activity action: %s", head.Action)
 		}
 
-		if activity != nil {
+		if diff != nil {
 			if err != nil {
 				return err
 			}
 
-			*activities = append(*activities, activity)
+			activity.Changeset.Diffs = append(activity.Changeset.Diffs, diff)
 		}
 	}
 
 	return nil
 }
 
-func BindComment(diff *godiff.Diff, comment *godiff.Comment) *godiff.Diff {
-	// in case of comment to overall review, not to line
-	if diff == nil {
-		return &godiff.Diff{
-			diffComments: godiff.CommentsTree{comment},
-		}
+func (rc *reviewCommented) UnmarshalJSON(data []byte) error {
+	value := struct {
+		Comment       *godiff.Comment
+		CommentAnchor *godiff.CommentAnchor
+		Diff          *godiff.Diff
+	}{}
+
+	err := json.Unmarshal(data, &value)
+	if err != nil {
+		return err
 	}
 
+	// in case of comment to overall review, not to line
+	if value.Diff == nil {
+		rc.diff = &godiff.Diff{
+			DiffComments: godiff.CommentsTree{value.Comment},
+		}
+		return nil
+	}
+
+	value.Diff.Source = value.Diff.Destination
+
 	// in case of line comment or reply
-	diff.ForEachLine(
+	value.Diff.ForEachLine(
 		func(
 			_ *godiff.Diff,
 			_ *godiff.Hunk,
 			s *godiff.Segment,
 			l *godiff.Line,
 		) {
-			if comment.CommentAnchor.LineType != s.Type {
+			if value.CommentAnchor.LineType != s.Type {
 				return
 			}
 
-			if s.GetLineNum(l) != comment.CommentAnchor.Line {
+			if s.GetLineNum(l) != value.CommentAnchor.Line {
 				return
 			}
 
-			l.Comments = append(l.Comments, comment)
+			l.Comments = append(l.Comments, value.Comment)
 		})
 
-	return diff
-}
-
-func (r ReviewCommented) ToChangeset() godiff.Changeset {
-	return godiff.Changeset{
-		ToHash:   r.Diff.GetHashTo(),
-		FromHash: r.Diff.GetHashFrom(),
-		Diffs:    []*godiff.Diff{r.Diff},
-	}
-}
-
-//func (current ReviewActivities) Compare(
-//    another ReviewActivities,
-//) []ReviewChange {
-//    existActivities := make([]ReviewCommented, 0)
-
-//    for _, changeset := range current {
-//        if commented, ok := changeset.(ReviewCommented); !ok {
-//            continue
-//        } else {
-//            existActivities = append(existActivities, commented)
-//        }
-//    }
-
-//    changes := make([]ReviewChange, 0)
-
-//    for _, changeset := range another {
-//        if commented, ok := changeset.(ReviewCommented); !ok {
-//            continue
-//        } else {
-//            change := matchActivityChange(existActivities, commented)
-//            if change != nil {
-//                changes = append(changes, change)
-//            }
-//        }
-//    }
-
-//    //changes = markRemovedActivities(existActivities, changes)
-
-//    return changes
-//}
-
-func ReadActivities(reader io.Reader) (ReviewActivities, error) {
-	changeset, err := godiff.ReadChangeset(reader)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return ReviewActivities{changeset}, nil
-}
-
-func ToChangeset() {
-
-}
-
-func WriteActivities(activities ReviewActivities, writer io.Writer) error {
-	for index, activity := range activities {
-		switch a := activity.(type) {
-		case ReviewRescoped:
-			data, err := tplutil.ExecuteToString(rescopedTpl, a)
-			if err != nil {
-				return err
-			}
-
-			writer.Write([]byte(godiff.Note(data)))
-			if err != nil {
-				return err
-			}
-		case ReviewCommented:
-			err := godiff.WriteChangeset(a.ToChangeset(), writer)
-			if err != nil {
-				return err
-			}
-		}
-
-		if index < len(activities)-1 {
-			writer.Write([]byte("\n\n\n"))
-		}
-	}
+	rc.diff = value.Diff
 
 	return nil
+}
+
+func (rr *reviewRescoped) UnmarshalJSON(data []byte) error {
+	value := struct {
+		CreatedDate      int64
+		FromHash         string
+		PreviousFromHash string
+		PreviousToHash   string
+		ToHash           string
+		Added            struct {
+			Changesets []rescopedChangeset
+		}
+		Removed struct {
+			Changesets []rescopedChangeset
+		}
+	}{}
+
+	err := json.Unmarshal(data, &value)
+	if err != nil {
+		return err
+	}
+
+	result, err := tplutil.ExecuteToString(rescopedTpl, value)
+	rr.diff = &godiff.Diff{
+		Note: result,
+	}
+
+	return err
 }

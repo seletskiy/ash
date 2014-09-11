@@ -2,7 +2,6 @@ package main
 
 import (
 	"io"
-	"os"
 
 	"github.com/seletskiy/godiff"
 )
@@ -89,15 +88,8 @@ func (c CommentRemoved) GetPayload() map[string]interface{} {
 	return nil
 }
 
-func ParseReviewFile(path string) (*Review, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-
-	defer file.Close()
-
-	changeset, err := godiff.ReadChangeset(file)
+func ReadReview(r io.Reader) (*Review, error) {
+	changeset, err := godiff.ReadChangeset(r)
 	if err != nil {
 		return nil, err
 	}

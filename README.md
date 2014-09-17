@@ -1,6 +1,6 @@
 Who ever wants a documentation if there is a gif?
 
-[gif here]
+![gif explain basics](https://cloud.githubusercontent.com/assets/674812/4304381/4135dc04-3e70-11e4-8bcd-979fc8bd4946.gif)
 
 Installation
 ============

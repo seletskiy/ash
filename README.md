@@ -111,3 +111,4 @@ State of things
 * [ ] integrate `ash` with `vim` using `Unite` (PR is welcomed);
 * [ ] integrate `ash` with `sublime` writing a plugin (PR is welcomed);
 * [ ] be more tolerant to user mistakes (`ash` can crash sometime);
+* [ ] wrap long lines in comments;

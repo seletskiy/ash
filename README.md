@@ -100,6 +100,30 @@ You can modify review file which will be opened in editor by:
 * replying to the existing comments by entering reply lines of text with some
   indentation *after* comment delimiter `---`;
 
+Tips and tricks
+---------------
+
+You can use shorthand syntax for accessing reviews without specifying full PR
+url.
+
+There are two flags for that:
+* `--host` which used to specify Stash host (e.g. http://stash.local/);
+* `--project` which used to specify default project to search repo/pull-request;
+
+So, you can add following to your `ashrc`:
+```
+--host
+  http://<your stash hostname>/
+
+--project
+  mycoolproject
+```
+
+Now you can run `ash` like this:
+```
+ash myrepo/123 review
+ash notsocoolproject/anotherrepo/456 review
+```
 
 State of things
 ===============

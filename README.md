@@ -13,7 +13,7 @@ go get github.com/seletskiy/ash
 
 After that, `ash` executable should be available for use.
 
-Important node
+Important note
 ==============
 
 `ash` is in a development phase, so it can crash unexpectedly.

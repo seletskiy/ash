@@ -2,12 +2,29 @@ package main
 
 import (
 	"io"
+	"regexp"
+	"strings"
 
 	"github.com/seletskiy/godiff"
 )
 
+const usageText = "Oh, hello there!\n\n" +
+	"Some points about using ash:\n" +
+	"* Everything beginning with ### will be ignored.\n" +
+	"* Use one # to start a comment.\n" +
+	"* You can add line comments after specific lines.\n" +
+	"* You can add file comments outside of the diff.\n" +
+	"* You can add review comments outside of the diff (in the overview mode).\n" +
+	"* If you want to delete comment, you need to remove all it's contents\n" +
+	"  including header."
+
+const vimModeline = "vim: ft=diff"
+
+var reDanglingSpace = regexp.MustCompile(`(?m)\s*$`)
+
 type Review struct {
-	changeset godiff.Changeset
+	changeset  godiff.Changeset
+	isOverview bool
 }
 
 type ReviewChange interface {
@@ -85,7 +102,9 @@ func (c CommentModified) GetPayload() map[string]interface{} {
 }
 
 func (c CommentRemoved) GetPayload() map[string]interface{} {
-	return nil
+	return map[string]interface{}{
+		"id": c.comment.Id,
+	}
 }
 
 func ReadReview(r io.Reader) (*Review, error) {
@@ -94,7 +113,22 @@ func ReadReview(r io.Reader) (*Review, error) {
 		return nil, err
 	}
 
-	return &Review{changeset}, nil
+	return &Review{
+		changeset:  changeset,
+		isOverview: false,
+	}, nil
+}
+
+func AddUsageComment(r *Review) {
+	r.changeset.Diffs = append([]*godiff.Diff{&godiff.Diff{
+		Note: usageText}},
+		r.changeset.Diffs...)
+}
+
+func AddVimModeline(r *Review) {
+	r.changeset.Diffs = append(r.changeset.Diffs, &godiff.Diff{
+		Note: vimModeline,
+	})
 }
 
 func WriteReview(review *Review, writer io.Writer) error {
@@ -112,8 +146,14 @@ func (current *Review) Compare(another *Review) []ReviewChange {
 	changes := make([]ReviewChange, 0)
 
 	another.changeset.ForEachComment(
-		func(_ *godiff.Diff, comment, parent *godiff.Comment) {
+		func(diff *godiff.Diff, comment, parent *godiff.Comment) {
 			change := matchCommentChange(existComments, comment, parent)
+			if _, ok := change.(ReviewCommentAdded); ok && !current.isOverview {
+				comment.Anchor.Path = diff.Destination.ToString
+				comment.Anchor.SrcPath = diff.Source.ToString
+				change = FileCommentAdded{comment}
+			}
+
 			if change != nil {
 				changes = append(changes, change)
 			}
@@ -132,22 +172,19 @@ func matchCommentChange(
 			return ReplyAdded{comment, parent}
 		} else {
 			if comment.Anchor.Line == 0 {
-				if comment.Anchor.Path == "" {
-					return ReviewCommentAdded{comment}
-				} else {
-					return FileCommentAdded{comment}
-				}
+				return ReviewCommentAdded{comment}
 			} else {
 				return LineCommentAdded{comment}
 			}
 		}
 	} else {
 		for i, c := range comments {
-			if c != nil && c.Id == comment.Id {
-				comments[i] = nil
-				if c.Text != comment.Text {
-					return CommentModified{comment}
-				}
+			if c == nil || c.Id != comment.Id {
+				continue
+			}
+			comments[i] = nil
+			if trimCommentSpaces(c.Text) != trimCommentSpaces(comment.Text) {
+				return CommentModified{comment}
 			}
 		}
 	}
@@ -165,4 +202,13 @@ func markRemovedComments(
 	}
 
 	return changes
+}
+
+func trimCommentSpaces(text string) string {
+	return strings.TrimSpace(
+		reDanglingSpace.ReplaceAllString(
+			text,
+			``,
+		),
+	)
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"text/template"
 
 	"github.com/seletskiy/godiff"
@@ -34,6 +33,16 @@ var rescopedTpl = template.Must(
 {{end}}
 `)))
 
+var openedTpl = template.Must(
+	template.New(`rescoped`).Parse(tplutil.Strip(`
+Pull request opened by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
+`)))
+
+var commentOnFileTpl = template.Must(
+	template.New(`filecomment`).Parse(tplutil.Strip(`
+{{.Comment.Author.DisplayName}} commented on file {{.CommentAnchor.Path}}:
+`)))
+
 type ReviewActivity struct {
 	godiff.Changeset
 }
@@ -43,6 +52,10 @@ type reviewCommented struct {
 }
 
 type reviewRescoped struct {
+	diff *godiff.Diff
+}
+
+type reviewOpened struct {
 	diff *godiff.Diff
 }
 
@@ -72,6 +85,8 @@ func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
 		Values []json.RawMessage `json:"values"`
 	}{}
 
+	logger.Debug("unmarshalling activity response")
+
 	err := json.Unmarshal(data, &response)
 
 	if err != nil {
@@ -100,8 +115,12 @@ func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
 			value := reviewMerged{}
 			err = json.Unmarshal(rawActivity, &value)
 			diff = value.diff
+		case "OPENED":
+			value := reviewOpened{}
+			err = json.Unmarshal(rawActivity, &value)
+			diff = value.diff
 		default:
-			log.Println("unknown activity action: %s", head.Action)
+			logger.Warning("unknown activity action: %s", head.Action)
 		}
 
 		if diff != nil {
@@ -128,11 +147,22 @@ func (rc *reviewCommented) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	// in case of comment to overall review, not to line
+	// in case of comment to overall review or file, not to line
 	if value.Diff == nil {
 		rc.diff = &godiff.Diff{
-			DiffComments: godiff.CommentsTree{value.Comment},
+			FileComments: godiff.CommentsTree{value.Comment},
 		}
+
+		// in case of comment to file
+		if anchor := value.CommentAnchor; anchor != nil {
+			if anchor.Path != "" && anchor.LineType == "" {
+				rc.diff.Source.ToString = anchor.SrcPath
+				rc.diff.Destination.ToString = anchor.Path
+				rc.diff.Note, _ = tplutil.ExecuteToString(commentOnFileTpl,
+					value)
+			}
+		}
+
 		return nil
 	}
 
@@ -141,7 +171,7 @@ func (rc *reviewCommented) UnmarshalJSON(data []byte) error {
 	// in case of line comment or reply
 	value.Diff.ForEachLine(
 		func(
-			_ *godiff.Diff,
+			diff *godiff.Diff,
 			_ *godiff.Hunk,
 			s *godiff.Segment,
 			l *godiff.Line,
@@ -155,11 +185,35 @@ func (rc *reviewCommented) UnmarshalJSON(data []byte) error {
 			}
 
 			l.Comments = append(l.Comments, value.Comment)
+			value.Diff.LineComments = append(value.Diff.LineComments,
+				value.Comment)
 		})
 
 	rc.diff = value.Diff
 
 	return nil
+}
+
+func (rr *reviewOpened) UnmarshalJSON(data []byte) error {
+	value := struct {
+		CreatedDate int64
+		User        struct {
+			EmailAddress string
+			DisplayName  string
+		}
+	}{}
+
+	err := json.Unmarshal(data, &value)
+	if err != nil {
+		return err
+	}
+
+	result, err := tplutil.ExecuteToString(openedTpl, value)
+	rr.diff = &godiff.Diff{
+		Note: result,
+	}
+
+	return err
 }
 
 func (rr *reviewRescoped) UnmarshalJSON(data []byte) error {

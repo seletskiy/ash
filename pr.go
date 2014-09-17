@@ -8,6 +8,8 @@ import (
 	"github.com/seletskiy/godiff"
 )
 
+const commentPreviewLen = 40
+
 type unexpectedStatusCode int
 
 func (u unexpectedStatusCode) Error() string {
@@ -43,28 +45,19 @@ func NewPullRequest(repo *Repo, id int) PullRequest {
 func (pr *PullRequest) GetReview(path string) (*Review, error) {
 	result := godiff.Changeset{}
 
+	logger.Debug("accessing Stash...")
 	resp, err := pr.Resource.Res("diff").Id(path, &result).Get()
 	if err != nil {
 		return nil, err
 	}
 
-	status := resp.Raw.StatusCode
-	switch status {
-	case 200:
-		// ok
-	case 400:
-		fallthrough
-	case 401:
-		fallthrough
-	case 404:
-		errorBody, _ := ioutil.ReadAll(resp.Raw.Body)
-		if len(errorBody) > 0 {
-			return nil, stashApiError(errorBody)
-		} else {
-			return nil, unexpectedStatusCode(status)
-		}
-	default:
-		return nil, unexpectedStatusCode(status)
+	if err := checkErrorStatus(resp); err != nil {
+		return nil, err
+	}
+
+	for _, diff := range result.Diffs {
+		diff.Attributes.FromHash = []string{result.FromHash}
+		diff.Attributes.ToHash = []string{result.ToHash}
 	}
 
 	// TODO: refactor block
@@ -74,6 +67,8 @@ func (pr *PullRequest) GetReview(path string) (*Review, error) {
 				for _, c := range diff.LineComments {
 					if c.Id == id {
 						line.Comments = append(line.Comments, c)
+						diff.LineComments = append(diff.LineComments, c)
+						break
 					}
 				}
 			}
@@ -81,7 +76,12 @@ func (pr *PullRequest) GetReview(path string) (*Review, error) {
 
 	result.Path = path
 
-	return &Review{result}, nil
+	logger.Debug("successfully got review from Stash")
+
+	return &Review{
+		changeset:  result,
+		isOverview: false,
+	}, nil
 }
 
 func (pr *PullRequest) GetActivities() (*Review, error) {
@@ -90,26 +90,72 @@ func (pr *PullRequest) GetActivities() (*Review, error) {
 	}
 
 	activities := ReviewActivity{}
-	_, err := pr.Resource.Res("activities", &activities).Get(query)
+
+	logger.Debug("accessing Stash...")
+	resp, err := pr.Resource.Res("activities", &activities).Get(query)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Review{activities.Changeset}, nil
+	if err := checkErrorStatus(resp); err != nil {
+		return nil, err
+	}
+
+	logger.Debug("successfully got review from Stash")
+
+	return &Review{
+		changeset:  activities.Changeset,
+		isOverview: true,
+	}, nil
+}
+
+func (pr *PullRequest) GetFiles() (ReviewFiles, error) {
+	files := make(ReviewFiles, 0)
+
+	logger.Debug("accessing Stash...")
+	resp, err := pr.Resource.Res("changes", &files).Get()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := checkErrorStatus(resp); err != nil {
+		return nil, err
+	}
+
+	logger.Debug("successfully get files list from Stash")
+
+	return files, nil
 }
 
 func (pr *PullRequest) ApplyChange(change ReviewChange) error {
 	switch c := change.(type) {
 	case ReplyAdded:
-		pr.addComment(c)
+		logger.Info("replying to <%d>: <%s>", c.parent.Id,
+			c.comment.Short(commentPreviewLen))
+		return pr.addComment(c)
 	case LineCommentAdded:
-		pr.addComment(c)
+		logger.Info("commenting (L%d): <%s>",
+			c.comment.Anchor.Line,
+			c.comment.Short(commentPreviewLen))
+		return pr.addComment(c)
 	case CommentRemoved:
-		pr.removeComment(c)
+		logger.Info("wasting comment: <%d>",
+			c.comment.Id)
+		return pr.removeComment(c)
 	case CommentModified:
-		pr.modifyComment(c)
+		logger.Info("modifying comment <%d>: <%s>",
+			c.comment.Id, c.comment.Short(commentPreviewLen))
+		return pr.modifyComment(c)
+	case ReviewCommentAdded:
+		logger.Info("adding review level comment: <%s>",
+			c.comment.Short(commentPreviewLen))
+		return pr.addComment(c)
+	case FileCommentAdded:
+		logger.Info("adding file level comment: <%s>",
+			c.comment.Short(commentPreviewLen))
+		return pr.addComment(c)
 	default:
-		panic(fmt.Sprintf("unexpected <change> argument: %s", change))
+		logger.Warning("unexpected <change> argument: %#v", change)
 	}
 
 	return nil
@@ -117,24 +163,19 @@ func (pr *PullRequest) ApplyChange(change ReviewChange) error {
 
 func (pr *PullRequest) addComment(change ReviewChange) error {
 	result := godiff.Comment{}
+
+	logger.Debug("accessing Stash...")
 	resp, err := pr.Resource.Res("comments", &result).Post(change.GetPayload())
 
 	if err != nil {
 		return err
 	}
 
-	status := resp.Raw.StatusCode
-
-	//apiErr := ApiError{}
-	if status == 400 || status == 401 || status == 404 {
-		fmt.Println(status)
+	if err := checkErrorStatus(resp); err != nil {
+		return err
 	}
 
-	if result.Id > 0 {
-		fmt.Printf("[debug] comment added: %d\n", result.Id)
-	} else {
-		fmt.Printf("[debug] fail to add comment:\n%s\n", change)
-	}
+	logger.Info("comment added: <%d>", result.Id)
 
 	return nil
 }
@@ -143,21 +184,27 @@ func (pr *PullRequest) modifyComment(change CommentModified) error {
 	query := map[string]string{
 		"version": fmt.Sprint(change.comment.Version),
 	}
-
 	result := godiff.Comment{}
-	_, err := pr.Resource.
+
+	logger.Debug("accessing Stash...")
+
+	resp, err := pr.Resource.
 		Res("comments").
 		Id(fmt.Sprint(change.comment.Id), &result).
 		SetQuery(query).
-		Put(change)
+		Put(change.GetPayload())
 
-	if result.Id > 0 {
-		fmt.Printf("[debug] comment modified: %d\n", result.Id)
-	} else {
-		fmt.Printf("[debug] fail to modify comment:\n%s\n", change)
+	if err != nil {
+		return err
 	}
 
-	return err
+	if err := checkErrorStatus(resp); err != nil {
+		return err
+	}
+
+	logger.Info("comment modified: <%d>, version %d", result.Id, result.Version)
+
+	return nil
 }
 
 func (pr *PullRequest) removeComment(change CommentRemoved) error {
@@ -166,13 +213,50 @@ func (pr *PullRequest) removeComment(change CommentRemoved) error {
 	}
 
 	result := make(map[string]interface{})
-	_, err := pr.Resource.
+
+	logger.Debug("accessing Stash...")
+
+	resp, err := pr.Resource.
 		Res("comments").
 		Id(fmt.Sprint(change.comment.Id), &result).
 		SetQuery(query).
 		Delete()
 
-	fmt.Printf("[debug] comment wasted: %d\n", change.comment.Id)
+	if err != nil && resp.Raw.StatusCode != 204 {
+		return err
+	}
 
-	return err
+	if err := checkErrorStatus(resp); err != nil {
+		return err
+	}
+
+	logger.Info("comment wasted: <%d>", change.comment.Id)
+
+	return nil
+}
+
+func checkErrorStatus(resp *gopencils.Resource) error {
+	logger.Debug("Stash replied with HTTP code: %d", resp.Raw.StatusCode)
+
+	switch resp.Raw.StatusCode {
+	case 200:
+		fallthrough
+	case 201:
+		fallthrough
+	case 204:
+		return nil
+	case 400:
+		fallthrough
+	case 401:
+		fallthrough
+	case 404:
+		errorBody, _ := ioutil.ReadAll(resp.Raw.Body)
+		if len(errorBody) > 0 {
+			return stashApiError(errorBody)
+		} else {
+			return unexpectedStatusCode(resp.Raw.StatusCode)
+		}
+	default:
+		return unexpectedStatusCode(resp.Raw.StatusCode)
+	}
 }

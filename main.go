@@ -9,17 +9,15 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"text/template"
 
 	"github.com/bndr/gopencils"
 	"github.com/docopt/docopt-go"
 	"github.com/op/go-logging"
-	"github.com/seletskiy/tplutil"
 )
 
 var (
 	reStashURL = regexp.MustCompile(
-		`https?://(.*)/` +
+		`(https?://.*/)` +
 			`((users|projects)/([^/]+))` +
 			`/repos/([^/]+)` +
 			`/pull-requests/(\d+)`)
@@ -30,6 +28,7 @@ var configPath = os.Getenv("HOME") + "/.config/ash/ashrc"
 var logger = logging.MustGetLogger("main")
 
 const logFormat = "%{color}%{time:15:04:05.00} [%{level:.4s}] %{message}%{color:reset}"
+const startUrlExample = "http[s]://<host>/(users|projects)/<project>/repos/<repo>/pull-requests/<id>"
 
 type CmdLineArgs string
 
@@ -37,12 +36,13 @@ func parseCmdLine(cmd []string) (map[string]interface{}, error) {
 	help := `Atlassian Stash Reviewer.
 
 Most convient usage is specify pull request url and file you want to review:
-  ash review http://stash.local/projects/.../repos/.../pull-requests/... file
+  ash review ` + startUrlExample + ` file
 
 However, you can set up --host and --project flags in ~/.config/ash/ashrc file
 and access pull requests by shorthand commands:
-  ash review proj/mycoolrepo/1  # if --host is given
-  ash review mycoolrepo/1       # if --host and --project is given
+  ash proj/mycoolrepo/1 review  # if --host is given
+  ash mycoolrepo/1 review       # if --host and --project is given
+  ash mycoolrepo ls             # --//--
 
 Ash then open $EDITOR for commenting on pull request.
 
@@ -57,11 +57,16 @@ apply all changes made to the review.
 
 If <file-name> is omitted, ash welcomes you to review the overview.
 
-'ls' command can be used to list all files changed in pull request.
+'ls' command can be used to list various things, including:
+* files in pull request;
+* opened/merged/declined pull requests for repo;
+* repositories in specified project [NOT IMPLEMENTED];
+* projects [NOT IMPLEMENTED];
 
 Usage:
-  ash [options] <pull-request> review [<file-name>]
-  ash [options] <pull-request> ls
+  ash [options] <project>/<repo>/<pr> review [<file-name>]
+  ash [options] <project>/<repo>/<pr> ls
+  ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
   ash -h | --help
 
 Options:
@@ -85,12 +90,40 @@ Options:
 }
 
 func main() {
+	rawArgs := mergeArgsWithConfig(configPath)
+	args, _ := parseCmdLine(rawArgs)
+
+	setupLogger(args)
+
+	logger.Info("cmd line args are read from %s\n", configPath)
+	logger.Debug("cmd line args: %s", CmdLineArgs(fmt.Sprintf("%s", rawArgs)))
+
+	if args["--user"] == nil || args["--pass"] == nil {
+		fmt.Println("--user and --pass should be specified.")
+		os.Exit(1)
+	}
+
+	uri := parseUri(args)
+
+	user := args["--user"].(string)
+	pass := args["--pass"].(string)
+
+	auth := gopencils.BasicAuth{user, pass}
+	api := Api{uri.host, auth}
+	project := Project{&api, uri.project}
+	repo := project.GetRepo(uri.repo)
+
+	switch {
+	case args["<project>/<repo>/<pr>"] != nil:
+		reviewMode(args, repo, uri.pr)
+	case args["<project>/<repo>"] != nil:
+		repoMode(args, repo)
+	}
+}
+
+func setupLogger(args map[string]interface{}) {
 	logging.SetBackend(logging.NewLogBackend(os.Stderr, "", 0))
 	logging.SetFormatter(logging.MustStringFormatter(logFormat))
-
-	rawArgs := mergeArgsWithConfig(configPath)
-
-	args, _ := parseCmdLine(rawArgs)
 
 	logLevels := []logging.Level{
 		logging.WARNING,
@@ -106,35 +139,9 @@ func main() {
 	for _, lvl := range logLevels[:requestedLogLevel+1] {
 		logging.SetLevel(lvl, "main")
 	}
+}
 
-	logger.Debug("cmd line args: %s", CmdLineArgs(fmt.Sprintf("%s", rawArgs)))
-
-	url := ""
-	prId := args["<pull-request>"].(string)
-	if strings.HasPrefix(prId, "http:") || strings.HasPrefix(prId, "https:") {
-		url = prId
-	} else {
-		url = makeUrl(args)
-	}
-
-	logger.Debug("url to accessing Stash: %s", url)
-
-	if args["--user"] == nil || args["--pass"] == nil {
-		fmt.Println(
-			"--user and --pass should be specified.")
-		os.Exit(1)
-	}
-
-	matches := reStashURL.FindStringSubmatch(url)
-	if len(matches) == 0 {
-		fmt.Println(
-			"<pull-request> should be in either:\n" +
-				" - URL Format: http[s]://*/(users|projects)/*/repos/*/pull-requests/<id>\n" +
-				" - Shorthand format: [<project>/]<repo>/<id>",
-		)
-		os.Exit(1)
-	}
-
+func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 	editor := os.Getenv("EDITOR")
 	if args["-e"] != nil {
 		editor = args["-e"].(string)
@@ -145,26 +152,12 @@ func main() {
 			"Either -e or env var $EDITOR should specify edtitor to use.")
 		os.Exit(1)
 	}
-
-	hostName := matches[1]
-	projectName := matches[2]
-	repoName := matches[5]
-	pullRequestId, _ := strconv.ParseInt(matches[6], 10, 16)
-
-	user := args["--user"].(string)
-	pass := args["--pass"].(string)
-
-	auth := gopencils.BasicAuth{user, pass}
-	api := Api{hostName, auth}
-	project := Project{&api, projectName}
-	repo := Repo{&project, repoName}
-
 	path := ""
 	if args["<file-name>"] != nil {
 		path = args["<file-name>"].(string)
 	}
 
-	pullRequest := NewPullRequest(&repo, int(pullRequestId))
+	pullRequest := repo.GetPullRequest(pr)
 
 	switch {
 	case args["ls"]:
@@ -174,8 +167,133 @@ func main() {
 	}
 }
 
-func reviewFile(pr PullRequest, path string) (*Review, error) {
-	return pr.GetReview(path)
+func repoMode(args map[string]interface{}, repo Repo) {
+	switch {
+	case args["ls-reviews"]:
+		state := "open"
+		switch {
+		case args["declined"]:
+			state = "declined"
+		case args["merged"]:
+			state = "merged"
+		}
+		showReviewsInRepo(repo, state, args["-d"].(bool))
+	}
+}
+
+func showReviewsInRepo(repo Repo, state string, showDesc bool) {
+	reviews, err := repo.ListPullRequest(state)
+
+	if err != nil {
+		logger.Critical("can not list reviews: %s", err.Error())
+	}
+
+	reBeginningOfLine := regexp.MustCompile("(?m)^")
+	reBranchName := regexp.MustCompile("([^/]+)$")
+	for _, r := range reviews {
+		branchName := reBranchName.FindStringSubmatch(r.FromRef.Id)[1]
+		pretext := fmt.Sprintf("%3d", r.Id)
+		fmt.Printf("%s %s [%6s] %25s %-20s", pretext,
+			r.State, r.UpdatedDate,
+			r.Author.User.DisplayName,
+			branchName)
+
+		if showDesc && r.Description != "" {
+			desc := fmt.Sprintf("\n---\n%s\n---\n", r.Description)
+			fmt.Println(reBeginningOfLine.ReplaceAllString(
+				desc,
+				strings.Repeat(" ", len([]rune(pretext))+1)))
+		}
+
+		fmt.Println()
+	}
+
+	//log.Printf("%#v", reviews, err)
+}
+
+func parseUri(args map[string]interface{}) (
+	result struct {
+		host    string
+		project string
+		repo    string
+		pr      int64
+	},
+) {
+	uri := ""
+	keyName := ""
+	should := 0
+
+	if args["<project>/<repo>/<pr>"] != nil {
+		keyName = "<project>/<repo>/<pr>"
+		uri = args[keyName].(string)
+		should = 3
+	}
+
+	if args["<project>/<repo>"] != nil {
+		keyName = "<project>/<repo>"
+		uri = args[keyName].(string)
+		should = 2
+	}
+
+	matches := reStashURL.FindStringSubmatch(uri)
+	if len(matches) != 0 {
+		result.host = matches[1]
+		result.project = matches[2]
+		result.repo = matches[5]
+		result.pr, _ = strconv.ParseInt(matches[6], 10, 16)
+
+		return result
+	}
+
+	if args["--host"] == nil {
+		fmt.Println(
+			"In case of shorthand syntax --host should be specified")
+		os.Exit(1)
+	}
+
+	matches = strings.Split(uri, "/")
+
+	result.host = args["--host"].(string)
+
+	if len(matches) == 2 && should == 3 && args["--project"] != nil {
+		result.repo = matches[0]
+		result.pr, _ = strconv.ParseInt(matches[1], 10, 16)
+	}
+
+	if args["--project"] != nil {
+		result.project = args["--project"].(string)
+	}
+
+	if len(matches) == 2 && should == 2 {
+		result.project = matches[0]
+		result.repo = matches[1]
+	}
+
+	if len(matches) >= 3 && should == 3 {
+		result.project = matches[0]
+		result.repo = matches[1]
+		result.pr, _ = strconv.ParseInt(matches[2], 10, 16)
+	}
+
+	enough := result.project != "" && result.repo != "" &&
+		(result.pr != 0 || should == 2)
+
+	if !enough {
+		fmt.Println(
+			"<pull-request> should be in either:\n" +
+				" - URL Format: " + startUrlExample + "\n" +
+				" - Shorthand format: " + keyName,
+		)
+		os.Exit(1)
+	}
+
+	if result.project[0] == '~' || result.project[0] == '%' {
+		result.project = "users/" + result.project[1:]
+	} else {
+		result.project = "projects/" + result.project
+	}
+
+	return result
 }
 
 func editReviewInEditor(
@@ -232,8 +350,6 @@ func mergeArgsWithConfig(path string) []string {
 		}
 		args = append(args, line)
 	}
-
-	fmt.Fprintf(os.Stderr, "Note: cmd line args are read from %s\n", path)
 
 	args = append(args, os.Args[1:]...)
 
@@ -313,56 +429,6 @@ func review(pr PullRequest, editor string, path string) {
 	tmpFile.Close()
 	os.Remove(tmpFile.Name())
 	logger.Debug("removed tmp file: %s", tmpFile.Name())
-}
-
-func makeUrl(args map[string]interface{}) string {
-	if args["--host"] == nil {
-		fmt.Println("--host must be given to use shorthand syntax")
-		os.Exit(1)
-	}
-
-	project := ""
-	pullRequestParam := args["<pull-request>"].(string)
-	if len(strings.Split(pullRequestParam, "/")) < 3 {
-		if args["--project"] != nil {
-			project = args["--project"].(string) + "/"
-		}
-	}
-
-	projRepoPrString := project + pullRequestParam
-	projRepoPr := strings.Split(projRepoPrString, "/")
-	if len(projRepoPr) != 3 {
-		fmt.Println(
-			"--project and <pull-request> should contain 2 slashes in " +
-				"sum to form <proj>/<repo>/<pull-request-id> path.")
-		fmt.Printf("given: %s\n", projRepoPrString)
-		os.Exit(1)
-	}
-	ns := "projects"
-	if projRepoPr[0][0] == '~' {
-		ns = "users"
-		projRepoPr[0] = projRepoPr[0][1:]
-	}
-	tplValue := struct {
-		Ns   string
-		Proj string
-		Repo string
-		Pr   string
-	}{
-		ns,
-		projRepoPr[0],
-		projRepoPr[1],
-		projRepoPr[2],
-	}
-	tpl := template.Must(template.New("url").Parse(args["--url"].(string)))
-	url, err := tplutil.ExecuteToString(tpl, tplValue)
-	logger.Debug("%#v", url)
-	if err != nil {
-		fmt.Println("Error forming url: %s", err)
-		os.Exit(1)
-	}
-
-	return strings.TrimSuffix(args["--host"].(string), "/") + url
 }
 
 func (p CmdLineArgs) Redacted() interface{} {

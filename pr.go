@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 
 	"github.com/bndr/gopencils"
 	"github.com/seletskiy/godiff"
@@ -24,21 +23,21 @@ func (s stashApiError) Error() string {
 
 type PullRequest struct {
 	*Repo
-	Id       int
 	Resource *gopencils.Resource
-}
 
-func NewPullRequest(repo *Repo, id int) PullRequest {
-	return PullRequest{
-		Repo: repo,
-		Id:   id,
-		Resource: gopencils.Api(fmt.Sprintf(
-			"http://%s/rest/api/1.0/%s/repos/%s/pull-requests/%d",
-			repo.Host,
-			repo.Project.Name,
-			repo.Name,
-			id,
-		), &repo.Auth),
+	Id          int64
+	Description string
+	State       string
+	UpdatedDate UnixTimestamp
+
+	FromRef struct {
+		Id string
+	}
+
+	Author struct {
+		User struct {
+			DisplayName string
+		}
 	}
 }
 
@@ -233,30 +232,4 @@ func (pr *PullRequest) removeComment(change CommentRemoved) error {
 	logger.Info("comment wasted: <%d>", change.comment.Id)
 
 	return nil
-}
-
-func checkErrorStatus(resp *gopencils.Resource) error {
-	logger.Debug("Stash replied with HTTP code: %d", resp.Raw.StatusCode)
-
-	switch resp.Raw.StatusCode {
-	case 200:
-		fallthrough
-	case 201:
-		fallthrough
-	case 204:
-		return nil
-	case 400:
-		fallthrough
-	case 401:
-		fallthrough
-	case 404:
-		errorBody, _ := ioutil.ReadAll(resp.Raw.Body)
-		if len(errorBody) > 0 {
-			return stashApiError(errorBody)
-		} else {
-			return unexpectedStatusCode(resp.Raw.StatusCode)
-		}
-	default:
-		return unexpectedStatusCode(resp.Raw.StatusCode)
-	}
 }

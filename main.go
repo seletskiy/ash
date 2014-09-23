@@ -67,6 +67,7 @@ Usage:
   ash [options] <project>/<repo>/<pr> review [<file-name>]
   ash [options] <project>/<repo>/<pr> ls
   ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
+  ash [options] inbox [-d]
   ash -h | --help
 
 Options:
@@ -118,6 +119,8 @@ func main() {
 		reviewMode(args, repo, uri.pr)
 	case args["<project>/<repo>"] != nil:
 		repoMode(args, repo)
+	case args["inbox"].(bool):
+		inboxMode(args, api)
 	}
 }
 
@@ -138,6 +141,17 @@ func setupLogger(args map[string]interface{}) {
 
 	for _, lvl := range logLevels[:requestedLogLevel+1] {
 		logging.SetLevel(lvl, "main")
+	}
+}
+
+func inboxMode(args map[string]interface{}, api Api) {
+	reviews, err := api.GetInbox()
+	if err != nil {
+		logger.Critical("error retrieving inbox: %s", err.Error())
+	}
+
+	for _, r := range reviews {
+		printPullRequest(r, args["-d"].(bool))
 	}
 }
 
@@ -181,34 +195,46 @@ func repoMode(args map[string]interface{}, repo Repo) {
 	}
 }
 
-func showReviewsInRepo(repo Repo, state string, showDesc bool) {
+func showReviewsInRepo(repo Repo, state string, withDesc bool) {
 	reviews, err := repo.ListPullRequest(state)
 
 	if err != nil {
 		logger.Critical("can not list reviews: %s", err.Error())
 	}
 
-	reBeginningOfLine := regexp.MustCompile("(?m)^")
-	reBranchName := regexp.MustCompile("([^/]+)$")
 	for _, r := range reviews {
-		branchName := reBranchName.FindStringSubmatch(r.FromRef.Id)[1]
-		pretext := fmt.Sprintf("%3d", r.Id)
-		fmt.Printf("%s %s [%6s] %25s %-20s", pretext,
-			r.State, r.UpdatedDate,
-			r.Author.User.DisplayName,
-			branchName)
+		printPullRequest(r, withDesc)
+	}
+}
 
-		if showDesc && r.Description != "" {
-			desc := fmt.Sprintf("\n---\n%s\n---\n", r.Description)
-			fmt.Println(reBeginningOfLine.ReplaceAllString(
-				desc,
-				strings.Repeat(" ", len([]rune(pretext))+1)))
-		}
+func printPullRequest(pr PullRequest, withDesc bool) {
+	textId := fmt.Sprintf("%s/%s/%d ",
+		strings.ToLower(pr.FromRef.Repository.Project.Key),
+		pr.FromRef.Repository.Slug,
+		pr.Id,
+	)
 
-		fmt.Println()
+	fmt.Printf("%30s %s [%6s] %s: ",
+		textId,
+		pr.State, pr.UpdatedDate,
+		pr.Author.User.DisplayName,
+	)
+
+	if len(pr.Attributes.CommentCount) != 0 {
+		fmt.Printf("(%3s) ", pr.Attributes.CommentCount[0])
 	}
 
-	//log.Printf("%#v", reviews, err)
+	refSegments := strings.Split(pr.FromRef.Id, "/")
+	branchName := refSegments[len(refSegments)-1]
+	fmt.Printf("%s", branchName)
+
+	if withDesc && pr.Description != "" {
+		desc := fmt.Sprintf("\n---\n%s\n---", pr.Description)
+		fmt.Println(desc)
+	}
+
+	fmt.Println()
+
 }
 
 func parseUri(args map[string]interface{}) (
@@ -249,6 +275,11 @@ func parseUri(args map[string]interface{}) (
 		fmt.Println(
 			"In case of shorthand syntax --host should be specified")
 		os.Exit(1)
+	}
+
+	if should == 0 {
+		result.host = args["--host"].(string)
+		return
 	}
 
 	matches = strings.Split(uri, "/")
@@ -373,7 +404,7 @@ func showFilesList(pr PullRequest) {
 			}
 		}
 
-		fmt.Printf("%2s %7s %s\n", execFlag, file.ChangeType, file.DstPath)
+		fmt.Printf("%7s %s%s\n", file.ChangeType, file.DstPath, execFlag)
 	}
 }
 

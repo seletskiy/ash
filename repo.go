@@ -12,23 +12,11 @@ type Repo struct {
 	Resource *gopencils.Resource
 }
 
-func (p Project) GetRepo(name string) Repo {
-	return Repo{
-		Name: name,
-		Resource: gopencils.Api(fmt.Sprintf(
-			"%s/rest/api/1.0/%s/repos/%s",
-			p.Host,
-			p.Name,
-			name),
-			&p.Auth),
-	}
-}
-
 func (repo *Repo) GetPullRequest(id int64) PullRequest {
 	return PullRequest{
 		Repo:     repo,
 		Id:       id,
-		Resource: repo.Resource.Res("pull-requests").Id(fmt.Sprintf("%d", id)),
+		Resource: repo.Resource.Res("pull-requests").Id(fmt.Sprint(id)),
 	}
 }
 
@@ -44,13 +32,8 @@ func (repo *Repo) ListPullRequest(state string) ([]PullRequest, error) {
 		"state": state,
 	}
 
-	resp, err := repo.Resource.Res("pull-requests", &reply).Get(query)
-
+	err := repo.DoGet(repo.Resource.Res("pull-requests", &reply), query)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := checkErrorStatus(resp); err != nil {
 		return nil, err
 	}
 

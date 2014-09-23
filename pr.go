@@ -31,7 +31,13 @@ type PullRequest struct {
 	UpdatedDate UnixTimestamp
 
 	FromRef struct {
-		Id string
+		Id         string
+		Repository struct {
+			Slug    string
+			Project struct {
+				Key string
+			}
+		}
 	}
 
 	Author struct {
@@ -39,18 +45,17 @@ type PullRequest struct {
 			DisplayName string
 		}
 	}
+
+	Attributes struct {
+		CommentCount []string
+	}
 }
 
 func (pr *PullRequest) GetReview(path string) (*Review, error) {
 	result := godiff.Changeset{}
 
-	logger.Debug("accessing Stash...")
-	resp, err := pr.Resource.Res("diff").Id(path, &result).Get()
+	err := pr.DoGet(pr.Resource.Res("diff").Id(path, &result))
 	if err != nil {
-		return nil, err
-	}
-
-	if err := checkErrorStatus(resp); err != nil {
 		return nil, err
 	}
 
@@ -90,13 +95,8 @@ func (pr *PullRequest) GetActivities() (*Review, error) {
 
 	activities := ReviewActivity{}
 
-	logger.Debug("accessing Stash...")
-	resp, err := pr.Resource.Res("activities", &activities).Get(query)
+	err := pr.DoGet(pr.Resource.Res("activities", &activities), query)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := checkErrorStatus(resp); err != nil {
 		return nil, err
 	}
 
@@ -111,17 +111,12 @@ func (pr *PullRequest) GetActivities() (*Review, error) {
 func (pr *PullRequest) GetFiles() (ReviewFiles, error) {
 	files := make(ReviewFiles, 0)
 
-	logger.Debug("accessing Stash...")
-	resp, err := pr.Resource.Res("changes", &files).Get()
+	err := pr.DoGet(pr.Resource.Res("changes", &files))
 	if err != nil {
 		return nil, err
 	}
 
-	if err := checkErrorStatus(resp); err != nil {
-		return nil, err
-	}
-
-	logger.Debug("successfully get files list from Stash")
+	logger.Debug("successfully got files list from Stash")
 
 	return files, nil
 }
@@ -163,14 +158,8 @@ func (pr *PullRequest) ApplyChange(change ReviewChange) error {
 func (pr *PullRequest) addComment(change ReviewChange) error {
 	result := godiff.Comment{}
 
-	logger.Debug("accessing Stash...")
-	resp, err := pr.Resource.Res("comments", &result).Post(change.GetPayload())
-
+	err := pr.DoPost(pr.Resource.Res("comments", &result), change.GetPayload())
 	if err != nil {
-		return err
-	}
-
-	if err := checkErrorStatus(resp); err != nil {
 		return err
 	}
 
@@ -185,19 +174,13 @@ func (pr *PullRequest) modifyComment(change CommentModified) error {
 	}
 	result := godiff.Comment{}
 
-	logger.Debug("accessing Stash...")
-
-	resp, err := pr.Resource.
-		Res("comments").
-		Id(fmt.Sprint(change.comment.Id), &result).
-		SetQuery(query).
-		Put(change.GetPayload())
-
+	err := pr.DoPut(
+		pr.Resource.
+			Res("comments").
+			Id(fmt.Sprint(change.comment.Id), &result).
+			SetQuery(query),
+		change.GetPayload())
 	if err != nil {
-		return err
-	}
-
-	if err := checkErrorStatus(resp); err != nil {
 		return err
 	}
 
@@ -215,17 +198,13 @@ func (pr *PullRequest) removeComment(change CommentRemoved) error {
 
 	logger.Debug("accessing Stash...")
 
-	resp, err := pr.Resource.
+	req := pr.Resource.
 		Res("comments").
 		Id(fmt.Sprint(change.comment.Id), &result).
-		SetQuery(query).
-		Delete()
+		SetQuery(query)
 
-	if err != nil && resp.Raw.StatusCode != 204 {
-		return err
-	}
-
-	if err := checkErrorStatus(resp); err != nil {
+	err := pr.DoDelete(req)
+	if err != nil && req.Raw.StatusCode != 204 {
 		return err
 	}
 

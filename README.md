@@ -81,6 +81,7 @@ Now, using `ash` you can:
 Common usage of `ash` is:
 
 ```
+ash inbox (only if --host given)
 ash <pull request url> ls
 ash <pull request url> review
 ash <pull request url> review <file to review>
@@ -132,6 +133,8 @@ State of things
 * [x] list files in review;
 * [x] add, modify, delete line comments as well as review/file level comments;
 * [x] make `ash` work in overview mode;
+* [x] list reviews in project;
+* [x] list inbox;
 * [ ] integrate `ash` with `vim` using `Unite` (PR is welcomed);
 * [ ] integrate `ash` with `sublime` writing a plugin (PR is welcomed);
 * [ ] be more tolerant to user mistakes (`ash` can crash sometime);

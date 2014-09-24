@@ -1,6 +1,9 @@
 package main
 
-import "net/url"
+import (
+	"fmt"
+	"net/url"
+)
 
 func (api *Api) GetInbox() ([]PullRequest, error) {
 	logger.Debug("requesting pull requests count from Stash...")
@@ -29,7 +32,10 @@ func (api *Api) GetInbox() ([]PullRequest, error) {
 		Values []PullRequest
 	}{}
 
-	err = api.DoGet(resource.Res("pull-requests", &prReply))
+	err = api.DoGet(resource.Res("pull-requests", &prReply),
+		map[string]string{
+			"limit": fmt.Sprint(countReply.Count),
+		})
 	if err != nil {
 		return nil, err
 	}

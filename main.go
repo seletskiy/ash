@@ -27,6 +27,9 @@ var configPath = os.Getenv("HOME") + "/.config/ash/ashrc"
 
 var logger = logging.MustGetLogger("main")
 
+var tmpWorkDir = ""
+var panicState = false
+
 const logFormat = "%{color}%{time:15:04:05.00} [%{level:.4s}] %{message}%{color:reset}"
 const startUrlExample = "http[s]://<host>/(users|projects)/<project>/repos/<repo>/pull-requests/<id>"
 
@@ -74,25 +77,32 @@ Options:
   -h --help         Show this help.
   -u --user=<user>  Stash username.
   -p --pass=<pass>  Stash password. You want to set this flag in .ashrc file.
+  -d                Show descriptions for the listed PRs.
   -e=<editor>       Editor to use. This has priority over $EDITOR env var.
   --debug=<level>   Verbosity [default: 0].
-  --url=<url>       Template URL where pull requests are available.
-                    Usually you do not need to change that value.
-                    [default: /{{.Ns}}/{{.Proj}}/repos/{{.Repo}}/pull-requests/{{.Pr}}]
   --host=<host>     Stash host name. Change to hostname your stash is located.
   --project=<proj>  Use to specify default project that can be used when serching
                     pull requests. Can be set in either <project> or
                     <project>/<repo> format.
 `
 
-	args, err := docopt.Parse(help, cmd, true, "0.1 beta", false)
+	args, err := docopt.Parse(help, cmd, true, "1.1", false)
 
 	return args, err
 }
 
 func main() {
 	rawArgs := mergeArgsWithConfig(configPath)
-	args, _ := parseCmdLine(rawArgs)
+
+	args, err := parseCmdLine(rawArgs)
+	if err != nil {
+		logger.Critical(err.Error())
+	}
+
+	tmpWorkDir, err = ioutil.TempDir(os.TempDir(), "ash.")
+	if err != nil {
+		logger.Critical(err.Error())
+	}
 
 	setupLogger(args)
 
@@ -122,10 +132,31 @@ func main() {
 	case args["inbox"].(bool):
 		inboxMode(args, api)
 	}
+
+	if !panicState {
+		// in case of everything is fine
+		logger.Debug("removing %s", tmpWorkDir)
+		os.RemoveAll(tmpWorkDir)
+	}
 }
 
 func setupLogger(args map[string]interface{}) {
-	logging.SetBackend(logging.NewLogBackend(os.Stderr, "", 0))
+	debugLogFile, err := os.Create(tmpWorkDir + "/debug.log")
+	if err != nil {
+		logger.Critical(err.Error())
+	}
+
+	debugLog := logging.AddModuleLevel(
+		logging.NewLogBackend(debugLogFile, "", 0))
+
+	debugLog.SetLevel(logging.DEBUG, "main")
+
+	logging.SetBackend(
+		logging.MultiLogger(
+			debugLog,
+			logging.AddModuleLevel(logging.NewLogBackend(os.Stderr, "", 0))),
+	)
+
 	logging.SetFormatter(logging.MustStringFormatter(logFormat))
 
 	logLevels := []logging.Level{
@@ -142,6 +173,8 @@ func setupLogger(args map[string]interface{}) {
 	for _, lvl := range logLevels[:requestedLogLevel+1] {
 		logging.SetLevel(lvl, "main")
 	}
+
+	debugLog.SetLevel(logging.DEBUG, "main")
 }
 
 func inboxMode(args map[string]interface{}, api Api) {
@@ -214,7 +247,7 @@ func printPullRequest(pr PullRequest, withDesc bool) {
 		pr.Id,
 	)
 
-	fmt.Printf("%30s %s [%6s] %s: ",
+	fmt.Printf("%-30s %s [%6s] %s: ",
 		textId,
 		pr.State, pr.UpdatedDate,
 		pr.Author.User.DisplayName,
@@ -295,6 +328,10 @@ func parseUri(args map[string]interface{}) (
 		result.project = args["--project"].(string)
 	}
 
+	if len(matches) == 1 && should == 2 {
+		result.repo = matches[0]
+	}
+
 	if len(matches) == 2 && should == 2 {
 		result.project = matches[0]
 		result.repo = matches[1]
@@ -333,7 +370,6 @@ func editReviewInEditor(
 	logger.Info("writing review to file: %s", fileToUse.Name())
 
 	AddUsageComment(reviewToEdit)
-	AddVimModeline(reviewToEdit)
 
 	WriteReview(reviewToEdit, fileToUse)
 
@@ -429,9 +465,10 @@ func review(pr PullRequest, editor string, path string) {
 		os.Exit(1)
 	}
 
-	tmpFile, err := ioutil.TempFile(os.TempDir(), "review.diff.")
+	tmpFile, err := os.Create(tmpWorkDir + "/review.diff")
 	defer func() {
 		if r := recover(); r != nil {
+			panicState = true
 			printPanicMsg(r, tmpFile.Name())
 		}
 	}()
@@ -456,10 +493,6 @@ func review(pr PullRequest, editor string, path string) {
 			logger.Critical("can not apply change: %s", err.Error())
 		}
 	}
-
-	tmpFile.Close()
-	os.Remove(tmpFile.Name())
-	logger.Debug("removed tmp file: %s", tmpFile.Name())
 }
 
 func (p CmdLineArgs) Redacted() interface{} {
@@ -479,11 +512,13 @@ func printPanicMsg(r interface{}, reviewFileName string) {
 	fmt.Println("PANIC:", r)
 	fmt.Println()
 	fmt.Println(string(debug.Stack()))
-	fmt.Println("Well, program is crashed. This is a bug.")
+	fmt.Println("Well, program has crashed. This is a bug.")
 	fmt.Println()
 	fmt.Printf("All data you've entered are kept in the file:\n\t%s",
 		reviewFileName)
 	fmt.Println()
+	fmt.Printf("Debug log of program execution can be found at:\n\t%s",
+		tmpWorkDir+"/debug.log")
 	fmt.Println()
 	fmt.Printf("Feel free to open issue or PR on the:\n\t%s",
 		"https://github.com/seletskiy/ash")

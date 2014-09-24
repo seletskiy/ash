@@ -125,12 +125,6 @@ func AddUsageComment(r *Review) {
 		r.changeset.Diffs...)
 }
 
-func AddVimModeline(r *Review) {
-	r.changeset.Diffs = append(r.changeset.Diffs, &godiff.Diff{
-		Note: vimModeline,
-	})
-}
-
 func WriteReview(review *Review, writer io.Writer) error {
 	return godiff.WriteChangeset(review.changeset, writer)
 }

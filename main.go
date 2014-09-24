@@ -45,7 +45,7 @@ However, you can set up --host and --project flags in ~/.config/ash/ashrc file
 and access pull requests by shorthand commands:
   ash proj/mycoolrepo/1 review  # if --host is given
   ash mycoolrepo/1 review       # if --host and --project is given
-  ash mycoolrepo ls             # --//--
+  ash mycoolrepo ls-reviews     # --//--
 
 Ash then open $EDITOR for commenting on pull request.
 

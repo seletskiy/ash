@@ -76,7 +76,13 @@ following syntax highlights in `~/.vimrc` (one probably wants to change color
 codes accordingly to colorscheme):
 
 ```
-au FileType diff call g:ApplySyntaxForDiffComments()
+augroup syntax_hacks
+    au!
+    au FileType diff syn match DiffComment "^#.*"
+    au FileType diff syn match DiffCommentIgnore "^###.*"
+    au FileType diff call g:ApplySyntaxForDiffComments()
+augroup end
+
 
 fun! g:ApplySyntaxForDiffComments()
     if &background == 'light'

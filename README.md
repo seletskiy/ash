@@ -69,6 +69,49 @@ You can use `ashrc` config too:
  vim
 ```
 
+### Using vim
+
+Full blown integration is not ready yet (PR please!), but it is useful to have
+following syntax highlights in `~/.vimrc` (one probably wants to change color
+codes accordingly to colorscheme):
+
+```
+au FileType diff call g:ApplySyntaxForDiffComments()
+
+fun! g:ApplySyntaxForDiffComments()
+    if &background == 'light'
+        hi DiffCommentIgnore ctermfg=249 ctermbg=none
+        hi DiffComment ctermfg=16 ctermbg=254
+    else
+        hi DiffCommentIgnore ctermfg=249 ctermbg=none
+        hi DiffComment ctermfg=15 ctermbg=237
+    endif
+endfun
+```
+
+### Using sublime
+
+Because of sublime uses client-server architecture by default, editor
+executable should be set in the way it will wait until review file editing is
+done.
+
+You need to create wrapper and place it somewhere (preferably in the $PATH)
+`/path/to/sublw`:
+
+```
+#!/bin/sh
+
+/path/to/sublime -w "${@}"
+```
+
+Then specify this shiny new executable (do not forget to `chmod +x` it) as
+`ash` editor:
+
+```
+-e
+ /path/to/sublw
+```
+
 Running ash
 -----------
 

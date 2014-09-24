@@ -8,27 +8,22 @@ import (
 	"github.com/seletskiy/tplutil"
 )
 
+var updatedHeaderTpl = template.Must(
+	template.New(`updated`).Parse(tplutil.Strip(`
+Update at [{{.Date}}]{{"\n"}}
+==={{"\n\n"}}
+`)))
+
 var rescopedTpl = template.Must(
 	template.New(`rescoped`).Funcs(tplutil.Last).Parse(tplutil.Strip(`
-{{if .Added.Changesets}}
-	New commits added:
-	{{"\n"}}
-	{{range $i, $_ := .Added.Changesets}}
-		{{.DisplayId}} | {{.Author.DisplayName}} | {{.Message}}
-		{{if not (last $i $.Added.Changesets)}}
-		{{"\n"}}
-		{{end}}
-	{{end}}
-{{end}}
-{{if .Removed.Changesets}}
-	{{"\n"}}
-	Commits removed:
-	{{"\n"}}
-	{{range $i, $_ := .Removed.Changesets}}
-		{{.DisplayId}} | {{.Author.DisplayName}} | {{.Message}}
-		{{if not (last $i $.Removed.Changesets)}}
-		{{"\n"}}
-		{{end}}
+{{$prefix := .Prefix}}
+{{range $i, $_ := .Data}}
+{{$prefix}} {{.DisplayId}} | {{.Author.DisplayName}} | {{.AuthorTimestamp}}{{"\n"}}
+	---{{"\n"}}
+	{{.Message}}{{"\n"}}
+	---
+	{{if not (last $i $.Data)}}
+	{{"\n\n"}}
 	{{end}}
 {{end}}
 `)))
@@ -60,10 +55,10 @@ type reviewOpened struct {
 }
 
 type rescopedChangeset struct {
-	CreatedDate int64
-	Id          string
-	DisplayId   string
-	Author      struct {
+	AuthorTimestamp UnixTimestamp
+	Id              string
+	DisplayId       string
+	Author          struct {
 		Id           int
 		Name         string
 		EmailAddress string
@@ -218,7 +213,7 @@ func (rr *reviewOpened) UnmarshalJSON(data []byte) error {
 
 func (rr *reviewRescoped) UnmarshalJSON(data []byte) error {
 	value := struct {
-		CreatedDate      int64
+		CreatedDate      UnixTimestamp
 		FromHash         string
 		PreviousFromHash string
 		PreviousToHash   string
@@ -236,10 +231,41 @@ func (rr *reviewRescoped) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	result, err := tplutil.ExecuteToString(rescopedTpl, value)
-	rr.diff = &godiff.Diff{
-		Note: result,
+	components := []struct {
+		Data   []rescopedChangeset
+		Prefix string
+	}{
+		{value.Added.Changesets, "+"},
+		{value.Removed.Changesets, "-"},
 	}
+
+	header, err := tplutil.ExecuteToString(updatedHeaderTpl, struct {
+		Date UnixTimestamp
+	}{
+		value.CreatedDate,
+	})
+
+	if err != nil {
+		return err
+	}
+
+	rr.diff = &godiff.Diff{}
+	for _, val := range components {
+		if len(val.Data) > 0 {
+			result, err := tplutil.ExecuteToString(rescopedTpl, val)
+			if err != nil {
+				return err
+			}
+
+			if rr.diff.Note != "" {
+				rr.diff.Note += "\n\n"
+			}
+
+			rr.diff.Note += result
+		}
+	}
+
+	rr.diff.Note = header + rr.diff.Note
 
 	return err
 }

@@ -111,7 +111,12 @@ func (pr *PullRequest) GetActivities() (*Review, error) {
 func (pr *PullRequest) GetFiles() (ReviewFiles, error) {
 	files := make(ReviewFiles, 0)
 
-	err := pr.DoGet(pr.Resource.Res("changes", &files))
+	query := map[string]string{
+		"start": "0",
+		"limit": "1000",
+	}
+
+	err := pr.DoGet(pr.Resource.Res("changes", &files), query)
 	if err != nil {
 		return nil, err
 	}

@@ -81,6 +81,7 @@ Options:
   -e=<editor>       Editor to use. This has priority over $EDITOR env var.
   --debug=<level>   Verbosity [default: 0].
   --host=<host>     Stash host name. Change to hostname your stash is located.
+  --input=<input>   File for loading diff in review file
   --project=<proj>  Use to specify default project that can be used when serching
                     pull requests. Can be set in either <project> or
                     <project>/<repo> format.
@@ -194,14 +195,14 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 		editor = args["-e"].(string)
 	}
 
-	if editor == "" {
-		fmt.Println(
-			"Either -e or env var $EDITOR should specify edtitor to use.")
-		os.Exit(1)
-	}
 	path := ""
 	if args["<file-name>"] != nil {
 		path = args["<file-name>"].(string)
+	}
+
+	input := ""
+	if args["--input"] != nil {
+		input = args["--input"].(string)
 	}
 
 	pullRequest := repo.GetPullRequest(pr)
@@ -210,7 +211,7 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 	case args["ls"]:
 		showFilesList(pullRequest)
 	case args["review"]:
-		review(pullRequest, editor, path)
+		review(pullRequest, editor, path, input)
 	}
 }
 
@@ -375,6 +376,13 @@ func editReviewInEditor(
 
 	fileToUse.Sync()
 
+	if editor == "" {
+		fileToUse.Close()
+
+		fmt.Printf("%s", fileToUse.Name())
+		os.Exit(0)
+	}
+
 	logger.Debug("opening editor: %s %s", editor, fileToUse.Name())
 	editorCmd := exec.Command(editor, fileToUse.Name())
 	editorCmd.Stdin = os.Stdin
@@ -444,7 +452,7 @@ func showFilesList(pr PullRequest) {
 	}
 }
 
-func review(pr PullRequest, editor string, path string) {
+func review(pr PullRequest, editor string, path string, input string) {
 	var review *Review
 	var err error
 
@@ -465,17 +473,39 @@ func review(pr PullRequest, editor string, path string) {
 		os.Exit(1)
 	}
 
-	tmpFile, err := os.Create(tmpWorkDir + "/review.diff")
+	var changes []ReviewChange
+	var fileToUse *os.File
+
 	defer func() {
 		if r := recover(); r != nil {
 			panicState = true
-			printPanicMsg(r, tmpFile.Name())
+			printPanicMsg(r, fileToUse.Name())
 		}
 	}()
 
-	changes, err := editReviewInEditor(editor, review, tmpFile)
-	if err != nil {
-		logger.Fatal(err)
+	if input != "" {
+		logger.Debug("reading review from file %s", input)
+
+		fileToUse, _ = os.Open(input)
+
+		fileToUse.Sync()
+		fileToUse.Seek(0, os.SEEK_SET)
+
+		editedReview, err := ReadReview(fileToUse)
+
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		logger.Debug("comparing old and new reviews")
+		changes = review.Compare(editedReview)
+	} else {
+		fileToUse, _ = os.Create(tmpWorkDir + "/review.diff")
+
+		changes, err = editReviewInEditor(editor, review, fileToUse)
+		if err != nil {
+			logger.Fatal(err)
+		}
 	}
 
 	if len(changes) == 0 {

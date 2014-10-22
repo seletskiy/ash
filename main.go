@@ -67,7 +67,7 @@ If <file-name> is omitted, ash welcomes you to review the overview.
 * projects [NOT IMPLEMENTED];
 
 Usage:
-  ash [options] <project>/<repo>/<pr> review [<file-name>]
+  ash [options] <project>/<repo>/<pr> review [<file-name>] [-w]
   ash [options] <project>/<repo>/<pr> ls
   ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
   ash [options] inbox [-d]
@@ -80,6 +80,7 @@ Options:
   -u --user=<user>  Stash username.
   -p --pass=<pass>  Stash password. You want to set this flag in .ashrc file.
   -d                Show descriptions for the listed PRs.
+  -w                Ignore whitespaces
   -e=<editor>       Editor to use. This has priority over $EDITOR env var.
   --debug=<level>   Verbosity [default: 0].
   --host=<host>     Stash host name. Change to hostname your stash is located.
@@ -207,13 +208,18 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 		input = args["--input"].(string)
 	}
 
+	ignoreWhitespaces := false
+	if args["-w"].(bool) {
+		ignoreWhitespaces = true
+	}
+
 	pullRequest := repo.GetPullRequest(pr)
 
 	switch {
 	case args["ls"]:
 		showFilesList(pullRequest)
 	case args["review"]:
-		review(pullRequest, editor, path, input)
+		review(pullRequest, editor, path, input, ignoreWhitespaces)
 	}
 }
 
@@ -454,7 +460,7 @@ func showFilesList(pr PullRequest) {
 	}
 }
 
-func review(pr PullRequest, editor string, path string, input string) {
+func review(pr PullRequest, editor string, path string, input string, ignoreWhitespaces bool) {
 	var review *Review
 	var err error
 
@@ -463,7 +469,7 @@ func review(pr PullRequest, editor string, path string, input string) {
 		review, err = pr.GetActivities()
 	} else {
 		logger.Debug("downloading review from Stash")
-		review, err = pr.GetReview(path)
+		review, err = pr.GetReview(path, ignoreWhitespaces)
 	}
 
 	if err != nil {

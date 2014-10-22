@@ -72,9 +72,11 @@ Usage:
   ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
   ash [options] inbox [-d]
   ash -h | --help
+  ash -v | --version
 
 Options:
   -h --help         Show this help.
+  -v --version      Show version
   -u --user=<user>  Stash username.
   -p --pass=<pass>  Stash password. You want to set this flag in .ashrc file.
   -d                Show descriptions for the listed PRs.

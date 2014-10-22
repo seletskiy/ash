@@ -51,10 +51,15 @@ type PullRequest struct {
 	}
 }
 
-func (pr *PullRequest) GetReview(path string) (*Review, error) {
+func (pr *PullRequest) GetReview(path string, ignoreWhitespaces bool) (*Review, error) {
 	result := godiff.Changeset{}
 
-	err := pr.DoGet(pr.Resource.Res("diff").Id(path, &result))
+	queryString := make(map[string]string)
+	if ignoreWhitespaces {
+		queryString["whitespace"] = "ignore-all"
+	}
+
+	err := pr.DoGet(pr.Resource.Res("diff").Id(path, &result).SetQuery(queryString))
 	if err != nil {
 		return nil, err
 	}

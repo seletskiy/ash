@@ -93,6 +93,16 @@ func (pr *PullRequest) GetReview(path string, ignoreWhitespaces bool) (*Review, 
 	}, nil
 }
 
+func (pr *PullRequest) Approve() error {
+	resource := make(map[string]interface{})
+	return pr.DoPost(pr.Resource.Res("approve", &resource))
+}
+
+func (pr *PullRequest) Decline() error {
+	resource := make(map[string]interface{})
+	return pr.DoPost(pr.Resource.Res("decline", &resource))
+}
+
 func (pr *PullRequest) GetActivities() (*Review, error) {
 	query := map[string]string{
 		"limit": "25",

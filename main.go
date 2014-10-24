@@ -69,6 +69,7 @@ If <file-name> is omitted, ash welcomes you to review the overview.
 Usage:
   ash [options] <project>/<repo>/<pr> review [<file-name>] [-w]
   ash [options] <project>/<repo>/<pr> ls
+  ash [options] <project>/<repo>/<pr> (approve|decline)
   ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
   ash [options] inbox [-d]
   ash -h | --help
@@ -220,7 +221,33 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 		showFilesList(pullRequest)
 	case args["review"]:
 		review(pullRequest, editor, path, input, ignoreWhitespaces)
+	case args["approve"].(bool):
+		approve(pullRequest)
+	case args["decline"].(bool):
+		decline(pullRequest)
 	}
+}
+
+func approve(pr PullRequest) {
+	logger.Debug("Approving pr")
+	err := pr.Approve()
+	if err != nil {
+		logger.Critical("error approving: %s", err.Error())
+		os.Exit(1)
+	}
+
+	fmt.Println("Pull request successfully approved")
+}
+
+func decline(pr PullRequest) {
+	logger.Debug("Declining pr")
+	err := pr.Decline()
+	if err != nil {
+		logger.Critical("error declining: %s", err.Error())
+		os.Exit(1)
+	}
+
+	fmt.Println("Pull request successfully declined")
 }
 
 func repoMode(args map[string]interface{}, repo Repo) {

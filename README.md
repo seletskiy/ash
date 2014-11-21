@@ -71,6 +71,9 @@ You can use `ashrc` config too:
 
 ### Using vim
 
+Please, see https://github.com/kovetskiy/ash.vim. This plugin has decent
+integration with ash.
+
 Full blown integration is not ready yet (PR please!), but it is useful to have
 following syntax highlights in `~/.vimrc` (one probably wants to change color
 codes accordingly to colorscheme):
@@ -184,7 +187,7 @@ State of things
 * [x] make `ash` work in overview mode;
 * [x] list reviews in project;
 * [x] list inbox;
-* [ ] integrate `ash` with `vim` using `Unite` (PR is welcomed);
+* [x] integrate `ash` with `vim` using `Unite` (PR is welcomed);
 * [ ] integrate `ash` with `sublime` writing a plugin (PR is welcomed);
 * [ ] be more tolerant to user mistakes (`ash` can crash sometime);
 * [ ] wrap long lines in comments;

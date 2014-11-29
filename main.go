@@ -71,7 +71,7 @@ Usage:
   ash [options] <project>/<repo>/<pr> ls
   ash [options] <project>/<repo>/<pr> (approve|decline)
   ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
-  ash [options] inbox [-d]
+  ash [options] inbox [-d] [(reviewing|created|all)]
   ash -h | --help
   ash -v | --version
 
@@ -91,7 +91,7 @@ Options:
                     <project>/<repo> format.
 `
 
-	args, err := docopt.Parse(help, cmd, true, "1.1", false)
+	args, err := docopt.Parse(help, cmd, true, "1.2", false)
 
 	return args, err
 }
@@ -183,9 +183,28 @@ func setupLogger(args map[string]interface{}) {
 }
 
 func inboxMode(args map[string]interface{}, api Api) {
-	reviews, err := api.GetInbox()
-	if err != nil {
-		logger.Critical("error retrieving inbox: %s", err.Error())
+	var reviews []PullRequest
+
+	if args["created"] != nil || args["all"] != nil {
+		createdReviews, err := api.GetInbox("author")
+		if err != nil {
+			logger.Critical(
+				"error retrieving inbox for 'created': %s",
+				err.Error(),
+			)
+		}
+		reviews = append(reviews, createdReviews...)
+	}
+
+	if args["reviewing"] != nil || args["all"] != nil {
+		reviewingReviews, err := api.GetInbox("reviewer")
+		if err != nil {
+			logger.Critical(
+				"error retrieving inbox for 'reviewing': %s",
+				err.Error(),
+			)
+		}
+		reviews = append(reviews, reviewingReviews...)
 	}
 
 	for _, r := range reviews {

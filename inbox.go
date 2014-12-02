@@ -5,8 +5,11 @@ import (
 	"net/url"
 )
 
-func (api *Api) GetInbox() ([]PullRequest, error) {
-	logger.Debug("requesting pull requests count from Stash...")
+func (api *Api) GetInbox(role string) ([]PullRequest, error) {
+	logger.Debug(
+		"requesting pull requests count from Stash for role '%s'...",
+		role,
+	)
 
 	cookies, err := api.authViaWeb()
 	if err != nil {
@@ -21,7 +24,11 @@ func (api *Api) GetInbox() ([]PullRequest, error) {
 		Count int
 	}{}
 
-	err = api.DoGet(resource.Res("pull-requests/count", &countReply))
+	err = api.DoGet(resource.Res("pull-requests/count", &countReply),
+		map[string]string{
+			"role": role,
+		})
+
 	if err != nil {
 		return nil, err
 	}
@@ -35,6 +42,7 @@ func (api *Api) GetInbox() ([]PullRequest, error) {
 	err = api.DoGet(resource.Res("pull-requests", &prReply),
 		map[string]string{
 			"limit": fmt.Sprint(countReply.Count),
+			"role":  role,
 		})
 	if err != nil {
 		return nil, err

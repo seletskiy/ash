@@ -103,22 +103,50 @@ func (pr *PullRequest) Decline() error {
 	return pr.DoPost(pr.Resource.Res("decline", &resource))
 }
 
-func (pr *PullRequest) GetActivities() (*Review, error) {
-	query := map[string]string{
-		"limit": "25",
+func (pr *PullRequest) GetActivities(limit string) (*Review, error) {
+	if limit == "" {
+		limit = "1000"
 	}
 
-	activities := ReviewActivity{}
+	query := map[string]string{
+		"limit": limit,
+	}
 
-	err := pr.DoGet(pr.Resource.Res("activities", &activities), query)
-	if err != nil {
-		return nil, err
+	activities := godiff.Changeset{}
+
+	for {
+		response := struct {
+			Size          int
+			Limit         int
+			IsLastPage    bool
+			NextPageStart int
+
+			Value ReviewActivity `json:"values"`
+		}{}
+
+		err := pr.DoGet(pr.Resource.Res("activities", &response), query)
+		if err != nil {
+			return nil, err
+		}
+
+		activities.Diffs = append(activities.Diffs,
+			response.Value.Changeset.Diffs...)
+
+		if response.IsLastPage {
+			break
+		}
+
+		if limit != "" {
+			break
+		}
+
+		query["start"] = fmt.Sprint(response.NextPageStart)
 	}
 
 	logger.Debug("successfully got review from Stash")
 
 	return &Review{
-		changeset:  activities.Changeset,
+		changeset:  activities,
 		isOverview: true,
 	}, nil
 }

@@ -81,6 +81,8 @@ Options:
   -u --user=<user>  Stash username.
   -p --pass=<pass>  Stash password. You want to set this flag in .ashrc file.
   -d                Show descriptions for the listed PRs.
+  -l=<count>        Activities limit for review. If option is omitted, all
+                    activities will be displayed.
   -w                Ignore whitespaces
   -e=<editor>       Editor to use. This has priority over $EDITOR env var.
   --debug=<level>   Verbosity [default: 0].
@@ -233,13 +235,18 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 		ignoreWhitespaces = true
 	}
 
+	activitiesLimit := ""
+	if args["-l"] != nil {
+		activitiesLimit = args["-l"].(string)
+	}
+
 	pullRequest := repo.GetPullRequest(pr)
 
 	switch {
 	case args["ls"]:
 		showFilesList(pullRequest)
 	case args["review"]:
-		review(pullRequest, editor, path, input, ignoreWhitespaces)
+		review(pullRequest, editor, path, input, activitiesLimit, ignoreWhitespaces)
 	case args["approve"].(bool):
 		approve(pullRequest)
 	case args["decline"].(bool):
@@ -506,13 +513,16 @@ func showFilesList(pr PullRequest) {
 	}
 }
 
-func review(pr PullRequest, editor string, path string, input string, ignoreWhitespaces bool) {
+func review(
+	pr PullRequest, editor string, path string,
+	input string, activitiesLimit string, ignoreWhitespaces bool,
+) {
 	var review *Review
 	var err error
 
 	if path == "" {
 		logger.Debug("downloading overview from Stash")
-		review, err = pr.GetActivities()
+		review, err = pr.GetActivities(activitiesLimit)
 	} else {
 		logger.Debug("downloading review from Stash")
 		review, err = pr.GetReview(path, ignoreWhitespaces)

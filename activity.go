@@ -81,23 +81,13 @@ type reviewMerged struct {
 }
 
 func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
-	response := struct {
-		Size       int
-		Limit      int
-		IsLastPage bool
-
-		Values []json.RawMessage `json:"values"`
-	}{}
-
-	logger.Debug("unmarshalling activity response")
-
-	err := json.Unmarshal(data, &response)
-
+	values := []json.RawMessage{}
+	err := json.Unmarshal(data, &values)
 	if err != nil {
 		return err
 	}
 
-	for _, rawActivity := range response.Values {
+	for _, rawActivity := range values {
 		head := struct{ Action string }{}
 		err := json.Unmarshal(rawActivity, &head)
 		if err != nil {

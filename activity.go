@@ -33,6 +33,11 @@ var openedTpl = template.Must(
 Pull request opened by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
 `)))
 
+var approvedTpl = template.Must(
+	template.New(`approved`).Parse(tplutil.Strip(`
+Pull request approved by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
+`)))
+
 var commentOnFileTpl = template.Must(
 	template.New(`filecomment`).Parse(tplutil.Strip(`
 {{.Comment.Author.DisplayName}} commented on file {{.CommentAnchor.Path}}:
@@ -51,6 +56,10 @@ type reviewRescoped struct {
 }
 
 type reviewOpened struct {
+	diff *godiff.Diff
+}
+
+type reviewApproved struct {
 	diff *godiff.Diff
 }
 
@@ -112,6 +121,10 @@ func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
 			diff = value.diff
 		case "OPENED":
 			value := reviewOpened{}
+			err = json.Unmarshal(rawActivity, &value)
+			diff = value.diff
+		case "APPROVED":
+			value := reviewApproved{}
 			err = json.Unmarshal(rawActivity, &value)
 			diff = value.diff
 		default:
@@ -266,6 +279,28 @@ func (rr *reviewRescoped) UnmarshalJSON(data []byte) error {
 	}
 
 	rr.diff.Note = header + rr.diff.Note
+
+	return err
+}
+
+func (rr *reviewApproved) UnmarshalJSON(data []byte) error {
+	value := struct {
+		CreatedDate int64
+		User        struct {
+			EmailAddress string
+			DisplayName  string
+		}
+	}{}
+
+	err := json.Unmarshal(data, &value)
+	if err != nil {
+		return err
+	}
+
+	result, err := tplutil.ExecuteToString(approvedTpl, value)
+	rr.diff = &godiff.Diff{
+		Note: result,
+	}
 
 	return err
 }

@@ -104,12 +104,12 @@ func (pr *PullRequest) Decline() error {
 }
 
 func (pr *PullRequest) GetActivities(limit string) (*Review, error) {
-	if limit == "" {
-		limit = "1000"
-	}
+	query := map[string]string{}
 
-	query := map[string]string{
-		"limit": limit,
+	if limit != "" {
+		query["limit"] = limit
+	} else {
+		query["limit"] = "1000"
 	}
 
 	activities := godiff.Changeset{}

@@ -71,7 +71,7 @@ Usage:
   ash [options] <project>/<repo>/<pr> ls
   ash [options] <project>/<repo>/<pr> (approve|decline)
   ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
-  ash [options] inbox [-d] [(reviewing|created|all)]
+  ash [options] inbox [-d] [(reviewer|author|all)]
   ash -h | --help
   ash -v | --version
 
@@ -183,33 +183,43 @@ func setupLogger(args map[string]interface{}) {
 }
 
 func inboxMode(args map[string]interface{}, api Api) {
-	var reviews []PullRequest
+	roles := []string{"author", "reviewer"}
+	for _, role := range roles {
+		if args[role].(bool) {
+			roles = []string{role}
+			break
+		}
+	}
 
-	if args["created"] != nil || args["all"] != nil {
-		createdReviews, err := api.GetInbox("author")
+	channels := make(map[string]chan []PullRequest)
+	for _, role := range roles {
+		channels[role] = requestInboxFor(role, api)
+	}
+
+	for _, role := range roles {
+		for _, pullRequest := range <-channels[role] {
+			printPullRequest(pullRequest, args["-d"].(bool))
+		}
+	}
+}
+
+func requestInboxFor(role string, api Api) chan []PullRequest {
+	resultChannel := make(chan []PullRequest, 0)
+
+	go func() {
+		reviews, err := api.GetInbox(role)
 		if err != nil {
 			logger.Critical(
-				"error retrieving inbox for 'created': %s",
+				"error retrieving inbox for '%s': %s",
+				role,
 				err.Error(),
 			)
 		}
-		reviews = append(reviews, createdReviews...)
-	}
 
-	if args["reviewing"] != nil || args["all"] != nil {
-		reviewingReviews, err := api.GetInbox("reviewer")
-		if err != nil {
-			logger.Critical(
-				"error retrieving inbox for 'reviewing': %s",
-				err.Error(),
-			)
-		}
-		reviews = append(reviews, reviewingReviews...)
-	}
+		resultChannel <- reviews
+	}()
 
-	for _, r := range reviews {
-		printPullRequest(r, args["-d"].(bool))
-	}
+	return resultChannel
 }
 
 func reviewMode(args map[string]interface{}, repo Repo, pr int64) {

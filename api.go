@@ -12,8 +12,9 @@ import (
 )
 
 type Api struct {
-	Host string
-	Auth gopencils.BasicAuth
+	Host        string
+	Auth        gopencils.BasicAuth
+	AuthCookies []*http.Cookie
 }
 
 type Project struct {
@@ -38,6 +39,10 @@ func (api Api) GetResource() *gopencils.Resource {
 }
 
 func (api Api) authViaWeb() ([]*http.Cookie, error) {
+	if api.AuthCookies != nil {
+		return api.AuthCookies, nil
+	}
+
 	jar, _ := cookiejar.New(nil)
 	client := http.Client{Jar: jar}
 
@@ -52,8 +57,9 @@ func (api Api) authViaWeb() ([]*http.Cookie, error) {
 	}
 
 	hostUrl, _ := url.Parse(api.Host)
+	api.AuthCookies = jar.Cookies(hostUrl)
 
-	return jar.Cookies(hostUrl), nil
+	return api.AuthCookies, nil
 }
 
 func (api Api) DoGet(

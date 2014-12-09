@@ -125,7 +125,7 @@ func main() {
 	pass := args["--pass"].(string)
 
 	auth := gopencils.BasicAuth{user, pass}
-	api := Api{uri.host, auth}
+	api := Api{uri.host, auth, nil}
 	project := Project{&api, uri.project}
 	repo := project.GetRepo(uri.repo)
 

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fmt"
 	"net/url"
 )
 
@@ -20,30 +19,16 @@ func (api *Api) GetInbox(role string) ([]PullRequest, error) {
 	resource := api.GetResource().Res("inbox/latest")
 	resource.Api.Cookies.SetCookies(hostUrl, cookies)
 
-	countReply := struct {
-		Count int
-	}{}
-
-	err = api.DoGet(resource.Res("pull-requests/count", &countReply),
-		map[string]string{
-			"role": role,
-		})
-
-	if err != nil {
-		return nil, err
-	}
-
-	logger.Debug("Stash returned %d amount of pull requests", countReply.Count)
-
 	prReply := struct {
 		Values []PullRequest
 	}{}
 
 	err = api.DoGet(resource.Res("pull-requests", &prReply),
 		map[string]string{
-			"limit": fmt.Sprint(countReply.Count),
+			"limit": "1000",
 			"role":  role,
 		})
+
 	if err != nil {
 		return nil, err
 	}

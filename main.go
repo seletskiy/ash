@@ -81,8 +81,7 @@ Options:
   -u --user=<user>  Stash username.
   -p --pass=<pass>  Stash password. You want to set this flag in .ashrc file.
   -d                Show descriptions for the listed PRs.
-  -l=<count>        Activities limit for review. If option is omitted, all
-                    activities will be displayed.
+  -l=<count>        Number of activities to retrieve. [default: 1000]
   -w                Ignore whitespaces
   -e=<editor>       Editor to use. This has priority over $EDITOR env var.
   --debug=<level>   Verbosity [default: 0].
@@ -235,10 +234,7 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 		ignoreWhitespaces = true
 	}
 
-	activitiesLimit := ""
-	if args["-l"] != nil {
-		activitiesLimit = args["-l"].(string)
-	}
+	activitiesLimit := args["-l"].(string)
 
 	pullRequest := repo.GetPullRequest(pr)
 

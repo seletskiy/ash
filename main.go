@@ -506,9 +506,9 @@ func showFilesList(pr PullRequest) {
 		execFlag := ""
 		if file.DstExec != file.SrcExec {
 			if file.DstExec {
-				execFlag = "-x"
+				execFlag = " +x"
 			} else {
-				execFlag = "+x"
+				execFlag = " -x"
 			}
 		}
 

@@ -103,14 +103,16 @@ func (pr *PullRequest) Decline() error {
 	return pr.DoPost(pr.Resource.Res("decline", &resource))
 }
 
-func (pr *PullRequest) GetActivities() (*Review, error) {
+func (pr *PullRequest) GetActivities(limit string) (*Review, error) {
 	query := map[string]string{
-		"limit": "25",
+		"limit": limit,
 	}
 
-	activities := ReviewActivity{}
+	response := struct {
+		Value ReviewActivity `json:"values"`
+	}{}
 
-	err := pr.DoGet(pr.Resource.Res("activities", &activities), query)
+	err := pr.DoGet(pr.Resource.Res("activities", &response), query)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +120,9 @@ func (pr *PullRequest) GetActivities() (*Review, error) {
 	logger.Debug("successfully got review from Stash")
 
 	return &Review{
-		changeset:  activities.Changeset,
+		changeset: godiff.Changeset{
+			Diffs: response.Value.Changeset.Diffs,
+		},
 		isOverview: true,
 	}, nil
 }

@@ -76,20 +76,21 @@ Usage:
   ash -v | --version
 
 Options:
-  -h --help         Show this help.
-  -v --version      Show version
-  -u --user=<user>  Stash username.
-  -p --pass=<pass>  Stash password. You want to set this flag in .ashrc file.
-  -d                Show descriptions for the listed PRs.
-  -l=<count>        Number of activities to retrieve. [default: 1000]
-  -w                Ignore whitespaces
-  -e=<editor>       Editor to use. This has priority over $EDITOR env var.
-  --debug=<level>   Verbosity [default: 0].
-  --host=<host>     Stash host name. Change to hostname your stash is located.
-  --input=<input>   File for loading diff in review file
-  --project=<proj>  Use to specify default project that can be used when serching
-                    pull requests. Can be set in either <project> or
-                    <project>/<repo> format.
+  -h --help          Show this help.
+  -v --version       Show version
+  -u --user=<user>   Stash username.
+  -p --pass=<pass>   Stash password. You want to set this flag in .ashrc file.
+  -d                 Show descriptions for the listed PRs.
+  -l=<count>         Number of activities to retrieve. [default: 1000]
+  -w                 Ignore whitespaces
+  -e=<editor>        Editor to use. This has priority over $EDITOR env var.
+  --debug=<level>    Verbosity [default: 0].
+  --host=<host>      Stash host name. Change to hostname your stash is located.
+  --input=<input>    File for loading diff in review file
+  --output=<output>  Output review to specified file. Editor is ignored.
+  --project=<proj>   Use to specify default project that can be used when serching
+                     pull requests. Can be set in either <project> or
+                     <project>/<repo> format.
 `
 
 	args, err := docopt.Parse(help, cmd, true, "1.2", false)
@@ -239,6 +240,11 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 		input = args["--input"].(string)
 	}
 
+	output := ""
+	if args["--output"] != nil {
+		output = args["--output"].(string)
+	}
+
 	ignoreWhitespaces := false
 	if args["-w"].(bool) {
 		ignoreWhitespaces = true
@@ -252,7 +258,11 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 	case args["ls"]:
 		showFilesList(pullRequest)
 	case args["review"]:
-		review(pullRequest, editor, path, input, activitiesLimit, ignoreWhitespaces)
+		review(
+			pullRequest, editor, path, input, output,
+			activitiesLimit, ignoreWhitespaces,
+		)
+
 	case args["approve"].(bool):
 		approve(pullRequest)
 	case args["decline"].(bool):
@@ -435,14 +445,6 @@ func parseUri(args map[string]interface{}) (
 func editReviewInEditor(
 	editor string, reviewToEdit *Review, fileToUse *os.File,
 ) ([]ReviewChange, error) {
-	logger.Info("writing review to file: %s", fileToUse.Name())
-
-	AddUsageComment(reviewToEdit)
-
-	WriteReview(reviewToEdit, fileToUse)
-
-	fileToUse.Sync()
-
 	if editor == "" {
 		fileToUse.Close()
 
@@ -520,8 +522,9 @@ func showFilesList(pr PullRequest) {
 }
 
 func review(
-	pr PullRequest, editor string, path string,
-	input string, activitiesLimit string, ignoreWhitespaces bool,
+	pr PullRequest, editor string, path string, input string, output string,
+	activitiesLimit string,
+	ignoreWhitespaces bool,
 ) {
 	var review *Review
 	var err error
@@ -570,7 +573,22 @@ func review(
 		logger.Debug("comparing old and new reviews")
 		changes = review.Compare(editedReview)
 	} else {
-		fileToUse, _ = os.Create(tmpWorkDir + "/review.diff")
+		writeAndExit := false
+		if output == "" {
+			output = tmpWorkDir + "/review.diff"
+		} else {
+			writeAndExit = true
+		}
+
+		fileToUse, err := WriteReviewToFile(review, output)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		if writeAndExit {
+			fileToUse.Close()
+			os.Exit(0)
+		}
 
 		changes, err = editReviewInEditor(editor, review, fileToUse)
 		if err != nil {
@@ -593,6 +611,23 @@ func review(
 			logger.Critical("can not apply change: %s", err.Error())
 		}
 	}
+}
+
+func WriteReviewToFile(review *Review, output string) (*os.File, error) {
+	fileToUse, err := os.Create(output)
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("writing review to file: %s", fileToUse.Name())
+
+	AddUsageComment(review)
+
+	WriteReview(review, fileToUse)
+
+	fileToUse.Sync()
+
+	return fileToUse, nil
 }
 
 func (p CmdLineArgs) Redacted() interface{} {

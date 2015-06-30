@@ -573,8 +573,14 @@ func review(
 		logger.Debug("comparing old and new reviews")
 		changes = review.Compare(editedReview)
 	} else {
+		printFileName := false
 		writeAndExit := false
+
 		if output == "" {
+			output = tmpWorkDir + "/review.diff"
+		} else if output == "-" {
+			writeAndExit = true
+			printFileName = true
 			output = tmpWorkDir + "/review.diff"
 		} else {
 			writeAndExit = true
@@ -586,7 +592,10 @@ func review(
 		}
 
 		if writeAndExit {
-			fileToUse.Close()
+			if printFileName {
+				fmt.Println(output)
+			}
+
 			os.Exit(0)
 		}
 

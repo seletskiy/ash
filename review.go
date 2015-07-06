@@ -64,6 +64,22 @@ func (c LineCommentAdded) GetPayload() map[string]interface{} {
 			"lineType": c.comment.Anchor.LineType,
 			"path":     c.comment.Anchor.Path,
 			"srcPath":  c.comment.Anchor.SrcPath,
+			"commitRange": map[string]interface{}{
+				"pullRequest": map[string]interface{}{
+					"fromRef": map[string]interface{}{
+						"latestChangeset": c.comment.Anchor.FromHash,
+					},
+					"toRef": map[string]interface{}{
+						"latestChangeset": c.comment.Anchor.ToHash,
+					},
+				},
+				"untilRevision": map[string]interface{}{
+					"id": c.comment.Anchor.ToHash,
+				},
+				"sinceRevision": map[string]interface{}{
+					"id": c.comment.Anchor.FromHash,
+				},
+			},
 		},
 	}
 }

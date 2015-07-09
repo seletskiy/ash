@@ -556,6 +556,12 @@ func review(
 		}
 	}()
 
+	pullRequestInfo, err := pr.GetInfo()
+	if err != nil {
+		fmt.Println("Error while obtaining pull request info: %s", err)
+		os.Exit(1)
+	}
+
 	if input != "" {
 		logger.Debug("reading review from file %s", input)
 
@@ -586,7 +592,10 @@ func review(
 			writeAndExit = true
 		}
 
-		fileToUse, err := WriteReviewToFile(review, output)
+		fileToUse, err := WriteReviewToFile(
+			pullRequestInfo.Links.Self[0].Href, review, output,
+		)
+
 		if err != nil {
 			logger.Fatal(err)
 		}
@@ -622,7 +631,11 @@ func review(
 	}
 }
 
-func WriteReviewToFile(review *Review, output string) (*os.File, error) {
+func WriteReviewToFile(
+	url string, review *Review, output string,
+) (
+	*os.File, error,
+) {
 	fileToUse, err := os.Create(output)
 	if err != nil {
 		return nil, err
@@ -631,6 +644,8 @@ func WriteReviewToFile(review *Review, output string) (*os.File, error) {
 	logger.Info("writing review to file: %s", fileToUse.Name())
 
 	AddUsageComment(review)
+
+	AddAshModeline(url, review)
 
 	WriteReview(review, fileToUse)
 

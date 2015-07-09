@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -136,9 +137,23 @@ func ReadReview(r io.Reader) (*Review, error) {
 }
 
 func AddUsageComment(r *Review) {
-	r.changeset.Diffs = append([]*godiff.Diff{&godiff.Diff{
-		Note: usageText}},
-		r.changeset.Diffs...)
+	r.changeset.Diffs = append(
+		[]*godiff.Diff{
+			&godiff.Diff{
+				Note: usageText,
+			},
+		},
+		r.changeset.Diffs...,
+	)
+}
+
+func AddAshModeline(url string, review *Review) {
+	review.changeset.Diffs = append(
+		review.changeset.Diffs,
+		&godiff.Diff{
+			Note: fmt.Sprintf("ash: review-url=%s", url),
+		},
+	)
 }
 
 func WriteReview(review *Review, writer io.Writer) error {

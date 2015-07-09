@@ -51,6 +51,24 @@ type PullRequest struct {
 	}
 }
 
+type PullRequestInfo struct {
+	Links struct {
+		Self []struct {
+			Href string
+		}
+	}
+}
+
+func (pr *PullRequest) GetInfo() (*PullRequestInfo, error) {
+	pr.Resource.Response = &PullRequestInfo{}
+	err := pr.DoGet(pr.Resource)
+	if err != nil {
+		return nil, err
+	}
+
+	return pr.Resource.Response.(*PullRequestInfo), nil
+}
+
 func (pr *PullRequest) GetReview(path string, ignoreWhitespaces bool) (*Review, error) {
 	result := godiff.Changeset{}
 

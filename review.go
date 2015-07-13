@@ -148,10 +148,20 @@ func AddUsageComment(r *Review) {
 }
 
 func AddAshModeline(url string, review *Review) {
+	fileTag := "overview"
+	if !review.isOverview {
+		fileName := review.changeset.Diffs[0].Source.ToString
+		if fileName == "" {
+			fileName = review.changeset.Diffs[0].Destination.ToString
+		}
+
+		fileTag = fmt.Sprintf("file=%s", fileName)
+	}
+
 	review.changeset.Diffs = append(
 		review.changeset.Diffs,
 		&godiff.Diff{
-			Note: fmt.Sprintf("ash: review-url=%s", url),
+			Note: fmt.Sprintf("ash: review-url=%s %s", url, fileTag),
 		},
 	)
 }

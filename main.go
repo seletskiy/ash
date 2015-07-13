@@ -30,7 +30,9 @@ var logger = logging.MustGetLogger("main")
 var tmpWorkDir = ""
 var panicState = false
 
-const logFormat = "%{color}%{time:15:04:05.00} [%{level:.4s}] %{message}%{color:reset}"
+const logFormat = "%{time:15:04:05.00} [%{level:.4s}] %{message}"
+const logFormatColor = "%{color}" + logFormat + "%{color:reset}"
+
 const startUrlExample = "http[s]://<host>/(users|projects)/<project>/repos/<repo>/pull-requests/<id>"
 
 type CmdLineArgs string
@@ -91,6 +93,7 @@ Options:
   --project=<proj>   Use to specify default project that can be used when serching
                      pull requests. Can be set in either <project> or
                      <project>/<repo> format.
+  --no-color         Do not use color in output.
 `
 
 	args, err := docopt.Parse(help, cmd, true, "1.2", false)
@@ -164,7 +167,12 @@ func setupLogger(args map[string]interface{}) {
 			logging.AddModuleLevel(logging.NewLogBackend(os.Stderr, "", 0))),
 	)
 
-	logging.SetFormatter(logging.MustStringFormatter(logFormat))
+	targetLogFormat := logFormatColor
+	if args["--no-color"].(bool) {
+		targetLogFormat = logFormat
+	}
+
+	logging.SetFormatter(logging.MustStringFormatter(targetLogFormat))
 
 	logLevels := []logging.Level{
 		logging.WARNING,
@@ -643,9 +651,9 @@ func WriteReviewToFile(
 
 	logger.Info("writing review to file: %s", fileToUse.Name())
 
-	AddUsageComment(review)
-
 	AddAshModeline(url, review)
+
+	AddUsageComment(review)
 
 	WriteReview(review, fileToUse)
 

@@ -623,7 +623,7 @@ func review(
 	}
 
 	if len(changes) == 0 {
-		logger.Warning("no changes detected in review file (maybe a bug)")
+		logger.Info("no changes detected in review file (maybe a bug)")
 		os.Exit(2)
 	}
 

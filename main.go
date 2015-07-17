@@ -90,6 +90,8 @@ Options:
   --host=<host>      Stash host name. Change to hostname your stash is located.
   --input=<input>    File for loading diff in review file
   --output=<output>  Output review to specified file. Editor is ignored.
+  --origin=<origin>  Do not download review from stash and use specified file
+                     instead.
   --project=<proj>   Use to specify default project that can be used when serching
                      pull requests. Can be set in either <project> or
                      <project>/<repo> format.
@@ -262,12 +264,18 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 
 	pullRequest := repo.GetPullRequest(pr)
 
+	origin := ""
+	if args["--origin"] != nil {
+		origin = args["--origin"].(string)
+	}
+
 	switch {
 	case args["ls"]:
 		showFilesList(pullRequest)
 	case args["review"]:
 		review(
-			pullRequest, editor, path, input, output,
+			pullRequest, editor, path,
+			origin, input, output,
 			activitiesLimit, ignoreWhitespaces,
 		)
 
@@ -530,28 +538,49 @@ func showFilesList(pr PullRequest) {
 }
 
 func review(
-	pr PullRequest, editor string, path string, input string, output string,
+	pr PullRequest, editor string,
+	path string,
+	origin string, input string, output string,
 	activitiesLimit string,
 	ignoreWhitespaces bool,
 ) {
 	var review *Review
 	var err error
 
-	if path == "" {
-		logger.Debug("downloading overview from Stash")
-		review, err = pr.GetActivities(activitiesLimit)
+	if origin == "" {
+		if path == "" {
+			logger.Debug("downloading overview from Stash")
+			review, err = pr.GetActivities(activitiesLimit)
+		} else {
+			logger.Debug("downloading review from Stash")
+			review, err = pr.GetReview(path, ignoreWhitespaces)
+		}
+
+		if len(review.changeset.Diffs) == 0 {
+			fmt.Println("Specified file is not found in pull request.")
+			os.Exit(1)
+		}
 	} else {
-		logger.Debug("downloading review from Stash")
-		review, err = pr.GetReview(path, ignoreWhitespaces)
+		logger.Debug("using origin review from file %s", origin)
+		originFile, err := os.Open(origin)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		defer originFile.Close()
+
+		review, err = ReadReview(originFile)
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		if path == "" {
+			review.isOverview = true
+		}
 	}
 
 	if err != nil {
 		logger.Fatal(err)
-	}
-
-	if len(review.changeset.Diffs) == 0 {
-		fmt.Println("Specified file is not found in pull request.")
-		os.Exit(1)
 	}
 
 	var changes []ReviewChange
@@ -564,19 +593,13 @@ func review(
 		}
 	}()
 
-	pullRequestInfo, err := pr.GetInfo()
-	if err != nil {
-		fmt.Println("Error while obtaining pull request info: %s", err)
-		os.Exit(1)
-	}
-
 	if input != "" {
 		logger.Debug("reading review from file %s", input)
 
-		fileToUse, _ = os.Open(input)
-
-		fileToUse.Sync()
-		fileToUse.Seek(0, os.SEEK_SET)
+		fileToUse, err = os.Open(input)
+		if err != nil {
+			logger.Fatal(err)
+		}
 
 		editedReview, err := ReadReview(fileToUse)
 
@@ -587,6 +610,12 @@ func review(
 		logger.Debug("comparing old and new reviews")
 		changes = review.Compare(editedReview)
 	} else {
+		pullRequestInfo, err := pr.GetInfo()
+		if err != nil {
+			fmt.Println("Error while obtaining pull request info: %s", err)
+			os.Exit(1)
+		}
+
 		printFileName := false
 		writeAndExit := false
 

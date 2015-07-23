@@ -52,7 +52,8 @@ type PullRequest struct {
 }
 
 type PullRequestInfo struct {
-	Links struct {
+	Version int64
+	Links   struct {
 		Self []struct {
 			Href string
 		}
@@ -69,7 +70,9 @@ func (pr *PullRequest) GetInfo() (*PullRequestInfo, error) {
 	return pr.Resource.Response.(*PullRequestInfo), nil
 }
 
-func (pr *PullRequest) GetReview(path string, ignoreWhitespaces bool) (*Review, error) {
+func (pr *PullRequest) GetReview(
+	path string, ignoreWhitespaces bool,
+) (*Review, error) {
 	result := godiff.Changeset{}
 
 	queryString := make(map[string]string)
@@ -77,7 +80,9 @@ func (pr *PullRequest) GetReview(path string, ignoreWhitespaces bool) (*Review, 
 		queryString["whitespace"] = "ignore-all"
 	}
 
-	err := pr.DoGet(pr.Resource.Res("diff").Id(path, &result).SetQuery(queryString))
+	err := pr.DoGet(
+		pr.Resource.Res("diff").Id(path, &result).SetQuery(queryString),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -89,7 +94,10 @@ func (pr *PullRequest) GetReview(path string, ignoreWhitespaces bool) (*Review, 
 
 	// TODO: refactor block
 	result.ForEachLine(
-		func(diff *godiff.Diff, _ *godiff.Hunk, _ *godiff.Segment, line *godiff.Line) {
+		func(
+			diff *godiff.Diff, _ *godiff.Hunk,
+			_ *godiff.Segment, line *godiff.Line,
+		) {
 			for _, id := range line.CommentIds {
 				for _, c := range diff.LineComments {
 					if c.Id == id {
@@ -119,6 +127,19 @@ func (pr *PullRequest) Approve() error {
 func (pr *PullRequest) Decline() error {
 	resource := make(map[string]interface{})
 	return pr.DoPost(pr.Resource.Res("decline", &resource))
+}
+
+func (pr *PullRequest) Merge() error {
+	info, err := pr.GetInfo()
+	if err != nil {
+		return err
+	}
+
+	query := map[string]string{
+		"version": fmt.Sprint(info.Version, 10),
+	}
+
+	return pr.DoPost(pr.Resource.Res("merge").SetQuery(query))
 }
 
 func (pr *PullRequest) GetActivities(limit string) (*Review, error) {

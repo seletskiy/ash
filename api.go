@@ -128,23 +128,17 @@ func (project Project) GetRepo(name string) Repo {
 
 func checkErrorStatus(resp *gopencils.Resource) error {
 	switch resp.Raw.StatusCode {
-	case 200:
-		fallthrough
-	case 201:
-		fallthrough
-	case 204:
+	case 200, 201, 204:
 		return nil
-	case 400:
-		fallthrough
-	case 401:
-		fallthrough
-	case 404:
+
+	case 400, 401, 404, 409:
 		errorBody, _ := ioutil.ReadAll(resp.Raw.Body)
 		if len(errorBody) > 0 {
 			return stashApiError(errorBody)
 		} else {
 			return unexpectedStatusCode(resp.Raw.StatusCode)
 		}
+
 	default:
 		return unexpectedStatusCode(resp.Raw.StatusCode)
 	}

@@ -136,7 +136,7 @@ func (pr *PullRequest) Merge() error {
 	}
 
 	query := map[string]string{
-		"version": fmt.Sprint(info.Version, 10),
+		"version": fmt.Sprint(info.Version),
 	}
 
 	return pr.DoPost(pr.Resource.Res("merge").SetQuery(query))

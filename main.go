@@ -128,6 +128,16 @@ func main() {
 
 	uri := parseUri(args)
 
+	if !strings.HasPrefix(uri.host, "http") {
+		fmt.Printf(
+			"Stash hostname must be specified with protocol, http or https.\n"+
+				"Specified right now: %s\n",
+			uri.host,
+		)
+
+		os.Exit(1)
+	}
+
 	user := args["--user"].(string)
 	pass := args["--pass"].(string)
 

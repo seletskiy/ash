@@ -40,8 +40,8 @@ type CmdLineArgs string
 func parseCmdLine(cmd []string) (map[string]interface{}, error) {
 	help := `Atlassian Stash Reviewer.
 
-Most convient usage is specify pull request url and file you want to review:
-  ash review ` + startUrlExample + ` file
+Most convenient usage is specify pull request url and file you want to review:
+  ash ` + startUrlExample + ` review <file-to-review>
 
 However, you can set up --host and --project flags in ~/.config/ash/ashrc file
 and access pull requests by shorthand commands:
@@ -88,6 +88,7 @@ Options:
   -e=<editor>        Editor to use. This has priority over $EDITOR env var.
   --debug=<level>    Verbosity [default: 0].
   --host=<host>      Stash host name. Change to hostname your stash is located.
+                     Hostname must be specified with http[s]:// protocol.
   --input=<input>    File for loading diff in review file
   --output=<output>  Output review to specified file. Editor is ignored.
   --origin=<origin>  Do not download review from stash and use specified file

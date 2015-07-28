@@ -118,7 +118,7 @@ func main() {
 
 	setupLogger(args)
 
-	logger.Info("cmd line args are read from %s\n", configPath)
+	logger.Info("cmd line args are read from %s", configPath)
 	logger.Debug("cmd line args: %s", CmdLineArgs(fmt.Sprintf("%s", rawArgs)))
 
 	if args["--user"] == nil || args["--pass"] == nil {
@@ -522,16 +522,15 @@ func mergeArgsWithConfig(path string) []string {
 
 	if err != nil {
 		logger.Warning("can not access config: %s", err.Error())
-		return args
-	}
-
-	confLines := strings.Split(string(conf), "\n")
-	for _, line := range confLines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+	} else {
+		confLines := strings.Split(string(conf), "\n")
+		for _, line := range confLines {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			args = append(args, line)
 		}
-		args = append(args, line)
 	}
 
 	args = append(args, os.Args[1:]...)

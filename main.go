@@ -43,10 +43,10 @@ func parseCmdLine(cmd []string) (map[string]interface{}, error) {
 Most convenient usage is specify pull request url and file you want to review:
   ash ` + startUrlExample + ` review <file-to-review>
 
-However, you can set up --host and --project flags in ~/.config/ash/ashrc file
+However, you can set up --url and --project flags in ~/.config/ash/ashrc file
 and access pull requests by shorthand commands:
-  ash proj/mycoolrepo/1 review  # if --host is given
-  ash mycoolrepo/1 review       # if --host and --project is given
+  ash proj/mycoolrepo/1 review  # if --url is given
+  ash mycoolrepo/1 review       # if --url and --project is given
   ash mycoolrepo ls-reviews     # --//--
 
 Ash then open $EDITOR for commenting on pull request.
@@ -87,14 +87,14 @@ Options:
   -w                 Ignore whitespaces
   -e=<editor>        Editor to use. This has priority over $EDITOR env var.
   --debug=<level>    Verbosity [default: 0].
-  --host=<host>      Stash host name. Change to hostname your stash is located.
-                     Hostname must be specified with http[s]:// protocol.
+  --url=<url>        Stash server URL.  http:// will be used if no protocol is
+                     specified.
   --input=<input>    File for loading diff in review file
   --output=<output>  Output review to specified file. Editor is ignored.
   --origin=<origin>  Do not download review from stash and use specified file
                      instead.
-  --project=<proj>   Use to specify default project that can be used when serching
-                     pull requests. Can be set in either <project> or
+  --project=<proj>   Use to specify default project that can be used when
+                     serching pull requests. Can be set in either <project> or
                      <project>/<repo> format.
   --no-color         Do not use color in output.
 `
@@ -129,21 +129,19 @@ func main() {
 
 	uri := parseUri(args)
 
-	if !strings.HasPrefix(uri.host, "http") {
-		fmt.Printf(
-			"Stash hostname must be specified with protocol, http or https.\n"+
-				"Specified right now: %s\n",
-			uri.host,
-		)
+	if !strings.HasPrefix(uri.base, "http") {
+		uri.base = "http://" + uri.base
+	}
 
-		os.Exit(1)
+	if !strings.HasSuffix(uri.base, "/") {
+		uri.base = uri.base + "/"
 	}
 
 	user := args["--user"].(string)
 	pass := args["--pass"].(string)
 
 	auth := gopencils.BasicAuth{user, pass}
-	api := Api{uri.host, auth, nil}
+	api := Api{uri.base, auth, nil}
 	project := Project{&api, uri.project}
 	repo := project.GetRepo(uri.repo)
 
@@ -390,7 +388,7 @@ func printPullRequest(pr PullRequest, withDesc bool) {
 
 func parseUri(args map[string]interface{}) (
 	result struct {
-		host    string
+		base    string
 		project string
 		repo    string
 		pr      int64
@@ -414,7 +412,7 @@ func parseUri(args map[string]interface{}) (
 
 	matches := reStashURL.FindStringSubmatch(uri)
 	if len(matches) != 0 {
-		result.host = matches[1]
+		result.base = matches[1]
 		result.project = matches[2]
 		result.repo = matches[5]
 		result.pr, _ = strconv.ParseInt(matches[6], 10, 16)
@@ -422,20 +420,20 @@ func parseUri(args map[string]interface{}) (
 		return result
 	}
 
-	if args["--host"] == nil {
+	if args["--url"] == nil {
 		fmt.Println(
-			"In case of shorthand syntax --host should be specified")
+			"In case of shorthand syntax --url should be specified")
 		os.Exit(1)
 	}
 
 	if should == 0 {
-		result.host = args["--host"].(string)
+		result.base = args["--url"].(string)
 		return
 	}
 
 	matches = strings.Split(uri, "/")
 
-	result.host = args["--host"].(string)
+	result.base = args["--url"].(string)
 
 	if len(matches) == 2 && should == 3 && args["--project"] != nil {
 		result.repo = matches[0]

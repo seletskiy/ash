@@ -383,7 +383,7 @@ func printPullRequest(pr PullRequest, withDesc bool, printStatus bool) {
 	if len(pr.Attributes.CommentCount) != 0 {
 		fmt.Printf("(%3s) ", pr.Attributes.CommentCount[0])
 	} else {
-		fmt.Printf("      ")
+		fmt.Printf("(  0) ")
 	}
 
 	if printStatus {

@@ -133,7 +133,7 @@ Now, using `ash` you can:
 Common usage of `ash` is:
 
 ```
-ash inbox (only if --host given)
+ash inbox (only if --url given)
 ash <pull request url> ls
 ash <pull request url> review
 ash <pull request url> review <file to review>
@@ -160,12 +160,12 @@ You can use shorthand syntax for accessing reviews without specifying full PR
 url.
 
 There are two flags for that:
-* `--host` which used to specify Stash host (e.g. http://stash.local/);
+* `--url` which used to specify Stash host (e.g. http://stash.local/);
 * `--project` which used to specify default project to search repo/pull-request;
 
 So, you can add following to your `ashrc`:
 ```
---host
+--url
   http://<your stash hostname>/
 
 --project

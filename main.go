@@ -234,7 +234,7 @@ func inboxMode(args map[string]interface{}, api Api) {
 
 	for _, role := range roles {
 		for _, pullRequest := range <-channels[role] {
-			printPullRequest(pullRequest, args["-d"].(bool))
+			printPullRequest(pullRequest, args["-d"].(bool), false)
 		}
 	}
 }
@@ -367,26 +367,34 @@ func showReviewsInRepo(repo Repo, state string, withDesc bool) {
 	}
 
 	for _, r := range reviews {
-		printPullRequest(r, withDesc)
+		printPullRequest(r, withDesc, true)
 	}
 }
 
-func printPullRequest(pr PullRequest, withDesc bool) {
+func printPullRequest(pr PullRequest, withDesc bool, printStatus bool) {
 	textId := fmt.Sprintf("%s/%s/%d ",
 		strings.ToLower(pr.FromRef.Repository.Project.Key),
 		pr.FromRef.Repository.Slug,
 		pr.Id,
 	)
 
-	fmt.Printf("%-30s %s [%6s] %s: ",
-		textId,
-		pr.State, pr.UpdatedDate,
-		pr.Author.User.DisplayName,
-	)
+	fmt.Printf("%-30s ", textId)
 
 	if len(pr.Attributes.CommentCount) != 0 {
 		fmt.Printf("(%3s) ", pr.Attributes.CommentCount[0])
+	} else {
+		fmt.Printf("      ")
 	}
+
+	if printStatus {
+		fmt.Printf("%s ", pr.State)
+	}
+
+	fmt.Printf(
+		"[%6s] %s: ",
+		pr.UpdatedDate,
+		pr.Author.User.DisplayName,
+	)
 
 	refSegments := strings.Split(pr.FromRef.Id, "/")
 	branchName := refSegments[len(refSegments)-1]

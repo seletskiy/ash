@@ -31,7 +31,7 @@ type ApiError struct {
 type UnixTimestamp int
 
 func (u UnixTimestamp) String() string {
-	return time.Unix(int64(u/1000), 0).Format(time.ANSIC)
+	return time.Unix(int64(u/1000), 0).Format("Mon Jan _2 15:04 2006")
 }
 
 func (api Api) GetResource() *gopencils.Resource {

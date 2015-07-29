@@ -99,7 +99,22 @@ Options:
   --no-color         Do not use color in output.
 `
 
-	args, err := docopt.Parse(help, cmd, true, "1.2", false)
+	args, err := docopt.Parse(help, cmd, true, "1.2", false, false)
+
+	if _, ok := err.(*docopt.UserError); ok {
+		fmt.Println()
+		fmt.Println("Command line entered is invalid.")
+		fmt.Println()
+		fmt.Println(
+			"Arguments were merged with config values and " +
+				"the resulting command line is:")
+		fmt.Printf("\t%s\n\n", CmdLineArgs(fmt.Sprintf("%s", cmd)).Redacted())
+		os.Exit(1)
+	}
+
+	if err == nil && args == nil {
+		os.Exit(0)
+	}
 
 	return args, err
 }

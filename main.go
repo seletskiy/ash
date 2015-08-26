@@ -648,7 +648,7 @@ func review(
 		editedReview, err := ReadReview(fileToUse)
 
 		if err != nil {
-			logger.Fatal(err)
+			panic(err)
 		}
 
 		logger.Debug("comparing old and new reviews")
@@ -673,7 +673,7 @@ func review(
 			writeAndExit = true
 		}
 
-		fileToUse, err := WriteReviewToFile(
+		fileToUse, err = WriteReviewToFile(
 			pullRequestInfo.Links.Self[0].Href, review, output,
 		)
 
@@ -691,7 +691,7 @@ func review(
 
 		changes, err = editReviewInEditor(editor, review, fileToUse)
 		if err != nil {
-			logger.Fatal(err)
+			panic(err)
 		}
 	}
 
@@ -752,7 +752,7 @@ func printPanicMsg(r interface{}, reviewFileName string) {
 	fmt.Println("PANIC:", r)
 	fmt.Println()
 	fmt.Println(string(debug.Stack()))
-	fmt.Println("Well, program has crashed. This is a bug.")
+	fmt.Println("Well, program has crashed. This is probably a bug.")
 	fmt.Println()
 	fmt.Printf("All data you've entered are kept in the file:\n\t%s",
 		reviewFileName)

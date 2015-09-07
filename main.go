@@ -69,11 +69,11 @@ If <file-name> is omitted, ash welcomes you to review the overview.
 * projects [NOT IMPLEMENTED];
 
 Usage:
-  ash [options] <project>/<repo>/<pr> review [<file-name>] [-w]
+  ash [options] inbox [-d] [(reviewer|author|all)]
+  ash [options] <project>/<repo>/<pr> [review] [<file-name>] [-w]
   ash [options] <project>/<repo>/<pr> ls
   ash [options] <project>/<repo>/<pr> (approve|decline|merge)
   ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
-  ash [options] inbox [-d] [(reviewer|author|all)]
   ash -h | --help
   ash -v | --version
 
@@ -296,19 +296,18 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 	switch {
 	case args["ls"]:
 		showFilesList(pullRequest)
-	case args["review"]:
-		review(
-			pullRequest, editor, path,
-			origin, input, output,
-			activitiesLimit, ignoreWhitespaces,
-		)
-
 	case args["approve"].(bool):
 		approve(pullRequest)
 	case args["decline"].(bool):
 		decline(pullRequest)
 	case args["merge"].(bool):
 		merge(pullRequest)
+	default:
+		review(
+			pullRequest, editor, path,
+			origin, input, output,
+			activitiesLimit, ignoreWhitespaces,
+		)
 	}
 }
 

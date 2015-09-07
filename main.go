@@ -70,10 +70,10 @@ If <file-name> is omitted, ash welcomes you to review the overview.
 
 Usage:
   ash [options] inbox [-d] [(reviewer|author|all)]
-  ash [options] <project>/<repo>/<pr> [review] [<file-name>] [-w]
+  ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
   ash [options] <project>/<repo>/<pr> ls
   ash [options] <project>/<repo>/<pr> (approve|decline|merge)
-  ash [options] <project>/<repo> ls-reviews [-d] [(open|merged|declined)]
+  ash [options] <project>/<repo>/<pr> [review] [<file-name>] [-w]
   ash -h | --help
   ash -v | --version
 

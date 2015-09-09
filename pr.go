@@ -46,6 +46,10 @@ type PullRequest struct {
 		}
 	}
 
+	Reviewers []struct {
+		Approved bool
+	}
+
 	Attributes struct {
 		CommentCount []string
 	}

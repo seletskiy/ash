@@ -385,6 +385,15 @@ func printPullRequest(pr PullRequest, withDesc bool, printStatus bool) {
 		fmt.Printf("(  0) ")
 	}
 
+	approvedCount := 0
+	for _, reviewer := range pr.Reviewers {
+		if reviewer.Approved {
+			approvedCount += 1
+		}
+	}
+
+	fmt.Printf("+%d ", approvedCount)
+
 	if printStatus {
 		fmt.Printf("%s ", pr.State)
 	}

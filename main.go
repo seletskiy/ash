@@ -99,7 +99,7 @@ Options:
   --no-color         Do not use color in output.
 `
 
-	args, err := docopt.Parse(help, cmd, true, "1.2", false, false)
+	args, err := docopt.Parse(help, cmd, true, "1.3", false, false)
 
 	if _, ok := err.(*docopt.UserError); ok {
 		fmt.Println()

@@ -121,6 +121,10 @@ Then specify this shiny new executable (do not forget to `chmod +x` it) as
  /path/to/sublw
 ```
 
+### Using emacs
+
+For simple integration emacs with ash see https://github.com/s-kostyaev/ash.el
+
 Running ash
 -----------
 

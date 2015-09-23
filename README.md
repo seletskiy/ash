@@ -71,8 +71,10 @@ You can use `ashrc` config too:
 
 ### Using vim
 
-Please, see https://github.com/kovetskiy/ash.vim. This plugin has decent
-integration with ash.
+#### ashium
+
+Best integration into vim on the present date available via
+https://github.com/seletskiy/ashium.
 
 Full blown integration is not ready yet (PR please!), but it is useful to have
 following syntax highlights in `~/.vimrc` (one probably wants to change color
@@ -97,6 +99,13 @@ fun! g:ApplySyntaxForDiffComments()
     endif
 endfun
 ```
+
+#### ash.vim
+
+Also, there is little bit deprecated, but still usable plugin ash.vim, see
+https://github.com/kovetskiy/ash.vim. This plugin has decent integration with
+ash.
+
 
 ### Using sublime
 

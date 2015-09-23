@@ -101,7 +101,7 @@ func (pr *PullRequest) GetReview(
 		func(
 			diff *godiff.Diff, _ *godiff.Hunk,
 			_ *godiff.Segment, line *godiff.Line,
-		) {
+		) error {
 			for _, id := range line.CommentIds {
 				for _, c := range diff.LineComments {
 					if c.Id == id {
@@ -111,6 +111,8 @@ func (pr *PullRequest) GetReview(
 					}
 				}
 			}
+
+			return nil
 		})
 
 	result.Path = path

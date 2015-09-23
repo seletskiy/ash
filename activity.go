@@ -173,18 +173,20 @@ func (rc *reviewCommented) UnmarshalJSON(data []byte) error {
 			_ *godiff.Hunk,
 			s *godiff.Segment,
 			l *godiff.Line,
-		) {
+		) error {
 			if value.CommentAnchor.LineType != s.Type {
-				return
+				return nil
 			}
 
 			if s.GetLineNum(l) != value.CommentAnchor.Line {
-				return
+				return nil
 			}
 
 			l.Comments = append(l.Comments, value.Comment)
 			value.Diff.LineComments = append(value.Diff.LineComments,
 				value.Comment)
+
+			return nil
 		})
 
 	rc.diff = value.Diff

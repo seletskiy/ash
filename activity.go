@@ -38,6 +38,11 @@ var approvedTpl = template.Must(
 Pull request approved by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
 `)))
 
+var mergedTpl = template.Must(
+	template.New(`merged`).Parse(tplutil.Strip(`
+Pull request merged by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
+`)))
+
 var commentOnFileTpl = template.Must(
 	template.New(`filecomment`).Parse(tplutil.Strip(`
 {{.Comment.Author.DisplayName}} commented on file {{.CommentAnchor.Path}}:
@@ -47,19 +52,21 @@ type ReviewActivity struct {
 	godiff.Changeset
 }
 
-type reviewCommented struct {
+type reviewAction interface {
+	json.Unmarshaler
+	GetDiff() *godiff.Diff
+}
+
+type reviewActionBasic struct {
+	diff   *godiff.Diff
+	Action string
+}
+
+type reviewActionCommented struct {
 	diff *godiff.Diff
 }
 
-type reviewRescoped struct {
-	diff *godiff.Diff
-}
-
-type reviewOpened struct {
-	diff *godiff.Diff
-}
-
-type reviewApproved struct {
+type reviewActionRescoped struct {
 	diff *godiff.Diff
 }
 
@@ -74,10 +81,6 @@ type rescopedChangeset struct {
 		DisplayName  string
 	}
 	Message string
-}
-
-type reviewMerged struct {
-	diff *godiff.Diff
 }
 
 func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
@@ -95,37 +98,24 @@ func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
 		}
 
 		var diff *godiff.Diff
+		var value reviewAction
 
 		switch head.Action {
 		case "COMMENTED":
-			value := reviewCommented{}
-			err = json.Unmarshal(rawActivity, &value)
-			diff = value.diff
+			value = &reviewActionCommented{}
 		case "RESCOPED":
-			value := reviewRescoped{}
-			err = json.Unmarshal(rawActivity, &value)
-			diff = value.diff
-		case "MERGED":
-			value := reviewMerged{}
-			err = json.Unmarshal(rawActivity, &value)
-			diff = value.diff
-		case "OPENED":
-			value := reviewOpened{}
-			err = json.Unmarshal(rawActivity, &value)
-			diff = value.diff
-		case "APPROVED":
-			value := reviewApproved{}
-			err = json.Unmarshal(rawActivity, &value)
-			diff = value.diff
+			value = &reviewActionRescoped{}
 		default:
-			logger.Warning("unknown activity action: %s", head.Action)
+			value = &reviewActionBasic{Action: head.Action}
 		}
 
-		if diff != nil {
-			if err != nil {
-				return err
-			}
+		err = json.Unmarshal(rawActivity, value)
+		if err != nil {
+			return err
+		}
 
+		diff = value.GetDiff()
+		if diff != nil {
 			activity.Changeset.Diffs = append(activity.Changeset.Diffs, diff)
 		}
 	}
@@ -133,7 +123,7 @@ func (activity *ReviewActivity) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (rc *reviewCommented) UnmarshalJSON(data []byte) error {
+func (rc *reviewActionCommented) UnmarshalJSON(data []byte) error {
 	value := struct {
 		Comment       *godiff.Comment
 		CommentAnchor *godiff.CommentAnchor
@@ -194,29 +184,11 @@ func (rc *reviewCommented) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (rr *reviewOpened) UnmarshalJSON(data []byte) error {
-	value := struct {
-		CreatedDate int64
-		User        struct {
-			EmailAddress string
-			DisplayName  string
-		}
-	}{}
-
-	err := json.Unmarshal(data, &value)
-	if err != nil {
-		return err
-	}
-
-	result, err := tplutil.ExecuteToString(openedTpl, value)
-	rr.diff = &godiff.Diff{
-		Note: result,
-	}
-
-	return err
+func (rc *reviewActionCommented) GetDiff() *godiff.Diff {
+	return rc.diff
 }
 
-func (rr *reviewRescoped) UnmarshalJSON(data []byte) error {
+func (rr *reviewActionRescoped) UnmarshalJSON(data []byte) error {
 	value := struct {
 		CreatedDate      UnixTimestamp
 		FromHash         string
@@ -275,7 +247,24 @@ func (rr *reviewRescoped) UnmarshalJSON(data []byte) error {
 	return err
 }
 
-func (rr *reviewApproved) UnmarshalJSON(data []byte) error {
+func (rr *reviewActionRescoped) GetDiff() *godiff.Diff {
+	return rr.diff
+}
+
+func (rb *reviewActionBasic) UnmarshalJSON(data []byte) error {
+	var tpl *template.Template
+	switch rb.Action {
+	case "MERGED":
+		tpl = mergedTpl
+	case "OPENED":
+		tpl = openedTpl
+	case "APPROVED":
+		tpl = approvedTpl
+	default:
+		logger.Warning("unknown activity action: '%s'", rb.Action)
+		return nil
+	}
+
 	value := struct {
 		CreatedDate int64
 		User        struct {
@@ -289,10 +278,15 @@ func (rr *reviewApproved) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	result, err := tplutil.ExecuteToString(approvedTpl, value)
-	rr.diff = &godiff.Diff{
+	result, err := tplutil.ExecuteToString(tpl, value)
+
+	rb.diff = &godiff.Diff{
 		Note: result,
 	}
 
 	return err
+}
+
+func (rb *reviewActionBasic) GetDiff() *godiff.Diff {
+	return rb.diff
 }

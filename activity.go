@@ -43,6 +43,16 @@ var mergedTpl = template.Must(
 Pull request merged by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
 `)))
 
+var declinedTpl = template.Must(
+	template.New(`declined`).Parse(tplutil.Strip(`
+Pull request declined by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
+`)))
+
+var reopenedTpl = template.Must(
+	template.New(`reopened`).Parse(tplutil.Strip(`
+Pull request reopened by: {{.User.DisplayName}} <{{.User.EmailAddress}}>
+`)))
+
 var commentOnFileTpl = template.Must(
 	template.New(`filecomment`).Parse(tplutil.Strip(`
 {{.Comment.Author.DisplayName}} commented on file {{.CommentAnchor.Path}}:
@@ -260,6 +270,10 @@ func (rb *reviewActionBasic) UnmarshalJSON(data []byte) error {
 		tpl = openedTpl
 	case "APPROVED":
 		tpl = approvedTpl
+	case "DECLINED":
+		tpl = declinedTpl
+	case "REOPENED":
+		tpl = reopenedTpl
 	default:
 		logger.Warning("unknown activity action: '%s'", rb.Action)
 		return nil

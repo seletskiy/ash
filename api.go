@@ -12,7 +12,7 @@ import (
 )
 
 type Api struct {
-	Host        string
+	URL         string
 	Auth        gopencils.BasicAuth
 	AuthCookies []*http.Cookie
 }
@@ -35,7 +35,7 @@ func (u UnixTimestamp) String() string {
 }
 
 func (api Api) GetResource() *gopencils.Resource {
-	return gopencils.Api(fmt.Sprintf("%s/rest", api.Host), &api.Auth)
+	return gopencils.Api(fmt.Sprintf("%s/rest", api.URL), &api.Auth)
 }
 
 func (api Api) authViaWeb() ([]*http.Cookie, error) {
@@ -46,7 +46,7 @@ func (api Api) authViaWeb() ([]*http.Cookie, error) {
 	jar, _ := cookiejar.New(nil)
 	client := http.Client{Jar: jar}
 
-	_, err := client.PostForm(api.Host+"j_stash_security_check",
+	_, err := client.PostForm(api.URL+"/j_stash_security_check",
 		url.Values{
 			"j_username": {api.Auth.Username},
 			"j_password": {api.Auth.Password},
@@ -56,8 +56,8 @@ func (api Api) authViaWeb() ([]*http.Cookie, error) {
 		return nil, err
 	}
 
-	hostUrl, _ := url.Parse(api.Host)
-	api.AuthCookies = jar.Cookies(hostUrl)
+	hostURL, _ := url.Parse(api.URL)
+	api.AuthCookies = jar.Cookies(hostURL)
 
 	return api.AuthCookies, nil
 }

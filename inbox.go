@@ -15,9 +15,9 @@ func (api *Api) GetInbox(role string) ([]PullRequest, error) {
 		return nil, err
 	}
 
-	hostUrl, _ := url.Parse(api.Host)
+	hostURL, _ := url.Parse(api.URL)
 	resource := api.GetResource().Res("inbox/latest")
-	resource.Api.Cookies.SetCookies(hostUrl, cookies)
+	resource.Api.Cookies.SetCookies(hostURL, cookies)
 
 	prReply := struct {
 		Values []PullRequest

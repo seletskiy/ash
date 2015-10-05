@@ -148,9 +148,7 @@ func main() {
 		uri.base = "http://" + uri.base
 	}
 
-	if !strings.HasSuffix(uri.base, "/") {
-		uri.base = uri.base + "/"
-	}
+	uri.base = strings.TrimSuffix(uri.base, "/")
 
 	user := args["--user"].(string)
 	pass := args["--pass"].(string)

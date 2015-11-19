@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -86,6 +87,7 @@ Options:
   -l=<count>         Number of activities to retrieve. [default: 1000]
   -w                 Ignore whitespaces
   -e=<editor>        Editor to use. This has priority over $EDITOR env var.
+  -i                 Interactive mode. Ask before commiting changes.
   --debug=<level>    Verbosity [default: 0].
   --url=<url>        Stash server URL.  http:// will be used if no protocol is
                      specified.
@@ -291,6 +293,8 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 		origin = args["--origin"].(string)
 	}
 
+	interactiveMode := args["-i"].(bool)
+
 	switch {
 	case args["ls"]:
 		showFilesList(pullRequest)
@@ -305,6 +309,7 @@ func reviewMode(args map[string]interface{}, repo Repo, pr int64) {
 			pullRequest, editor, path,
 			origin, input, output,
 			activitiesLimit, ignoreWhitespaces,
+			interactiveMode,
 		)
 	}
 }
@@ -593,6 +598,7 @@ func review(
 	origin string, input string, output string,
 	activitiesLimit string,
 	ignoreWhitespaces bool,
+	interactiveMode bool,
 ) {
 	var review *Review
 	var err error
@@ -704,6 +710,25 @@ func review(
 	if len(changes) == 0 {
 		logger.Info("no changes detected in review file (maybe a bug)")
 		os.Exit(2)
+	}
+
+	if interactiveMode {
+		for i, change := range changes {
+			fmt.Printf("%d. %s\n\n", i+1, change.String())
+		}
+
+		pendingAnswer := true
+		for pendingAnswer {
+			fmt.Print("\n---\nIs that what you want to do? [Yn] ")
+			answer, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+
+			switch answer {
+			case "n\n", "N\n":
+				os.Exit(2)
+			case "\n", "Y\n":
+				pendingAnswer = false
+			}
+		}
 	}
 
 	logger.Debug("applying changes (%d)", len(changes))

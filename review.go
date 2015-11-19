@@ -30,18 +30,40 @@ type Review struct {
 
 type ReviewChange interface {
 	GetPayload() map[string]interface{}
+	String() string
 }
 
 type LineCommentAdded struct {
 	comment *godiff.Comment
 }
 
+func (added LineCommentAdded) String() string {
+	return fmt.Sprintf(
+		"Line comment added:\n%s",
+		indent(added.comment.Text, " > "),
+	)
+}
+
 type FileCommentAdded struct {
 	comment *godiff.Comment
 }
 
+func (added FileCommentAdded) String() string {
+	return fmt.Sprintf(
+		"File comment added:\n%s",
+		indent(added.comment.Text, " > "),
+	)
+}
+
 type ReviewCommentAdded struct {
 	comment *godiff.Comment
+}
+
+func (added ReviewCommentAdded) String() string {
+	return fmt.Sprintf(
+		"Review comment added:\n%s",
+		indent(added.comment.Text, " > "),
+	)
 }
 
 type ReplyAdded struct {
@@ -49,12 +71,34 @@ type ReplyAdded struct {
 	parent  *godiff.Comment
 }
 
+func (added ReplyAdded) String() string {
+	return fmt.Sprintf(
+		"Reply comment added:\n%s\n%s",
+		indent(added.parent.Text, " | "),
+		indent(added.comment.Text, "    > "),
+	)
+}
+
 type CommentModified struct {
 	comment *godiff.Comment
 }
 
+func (added CommentModified) String() string {
+	return fmt.Sprintf(
+		"Comment modified:\n%s",
+		indent(added.comment.Text, " > "),
+	)
+}
+
 type CommentRemoved struct {
 	comment *godiff.Comment
+}
+
+func (added CommentRemoved) String() string {
+	return fmt.Sprintf(
+		"Comment removed:\n%s",
+		indent(added.comment.Text, " > "),
+	)
 }
 
 func (c LineCommentAdded) GetPayload() map[string]interface{} {
@@ -245,5 +289,11 @@ func trimCommentSpaces(text string) string {
 			text,
 			``,
 		),
+	)
+}
+
+func indent(text string, indentation string) string {
+	return regexp.MustCompile(`(?m)^`).ReplaceAllLiteralString(
+		text, indentation,
 	)
 }

@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -10,6 +11,8 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"text/tabwriter"
+	"time"
 
 	"github.com/bndr/gopencils"
 	"github.com/docopt/docopt-go"
@@ -232,11 +235,13 @@ func inboxMode(args map[string]interface{}, api Api) {
 		channels[role] = requestInboxFor(role, api)
 	}
 
+	writer := tabwriter.NewWriter(os.Stdout, 0, 8, 1, ' ', 0)
 	for _, role := range roles {
 		for _, pullRequest := range <-channels[role] {
-			printPullRequest(pullRequest, args["-d"].(bool), false)
+			printPullRequest(writer, pullRequest, args["-d"].(bool), false)
 		}
 	}
+	writer.Flush()
 }
 
 func requestInboxFor(role string, api Api) chan []PullRequest {
@@ -368,24 +373,28 @@ func showReviewsInRepo(repo Repo, state string, withDesc bool) {
 		logger.Critical("can not list reviews: %s", err.Error())
 	}
 
+	writer := tabwriter.NewWriter(os.Stdout, 0, 8, 1, ' ', 0)
+
 	for _, r := range reviews {
-		printPullRequest(r, withDesc, true)
+		printPullRequest(writer, r, withDesc, true)
 	}
+
+	writer.Flush()
 }
 
-func printPullRequest(pr PullRequest, withDesc bool, printStatus bool) {
-	textId := fmt.Sprintf("%s/%s/%d ",
+func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStatus bool) {
+	textId := fmt.Sprintf("%s/%s/%d",
 		strings.ToLower(pr.FromRef.Repository.Project.Key),
 		pr.FromRef.Repository.Slug,
 		pr.Id,
 	)
 
-	fmt.Printf("%-30s ", textId)
+	fmt.Fprintf(writer, "%-30s\t", textId)
 
 	if len(pr.Attributes.CommentCount) != 0 {
-		fmt.Printf("(%3s) ", pr.Attributes.CommentCount[0])
+		fmt.Fprintf(writer, "(%3s) ", pr.Attributes.CommentCount[0])
 	} else {
-		fmt.Printf("(  0) ")
+		fmt.Fprintf(writer, "(  0) ")
 	}
 
 	approvedCount := 0
@@ -395,29 +404,45 @@ func printPullRequest(pr PullRequest, withDesc bool, printStatus bool) {
 		}
 	}
 
-	fmt.Printf("+%d ", approvedCount)
+	fmt.Fprintf(writer, "+%d/%d ", approvedCount, len(pr.Reviewers))
 
 	if printStatus {
-		fmt.Printf("%s ", pr.State)
+		fmt.Fprintf(writer, "%s ", pr.State)
 	}
 
-	fmt.Printf(
-		"[%6s] %s: ",
-		pr.UpdatedDate,
+	relativeUpdateDate := time.Since(pr.UpdatedDate.AsTime())
+
+	updatedAt := "now"
+	switch {
+	case relativeUpdateDate.Minutes() < 1:
+		updatedAt = "now"
+	case relativeUpdateDate.Hours() < 1:
+		updatedAt = fmt.Sprintf("%dm", int(relativeUpdateDate.Minutes()))
+	case relativeUpdateDate.Hours() < 24:
+		updatedAt = fmt.Sprintf("%dh", int(relativeUpdateDate.Hours()))
+	case relativeUpdateDate.Hours() < 24*7:
+		updatedAt = fmt.Sprintf("%dd", int(relativeUpdateDate.Hours()/24))
+	case relativeUpdateDate.Hours() < 24*7*4:
+		updatedAt = fmt.Sprintf("%dw", int(relativeUpdateDate.Hours()/24/7))
+	default:
+		updatedAt = fmt.Sprintf(
+			"%dmon", int(relativeUpdateDate.Hours()/24/7/4),
+		)
+	}
+
+	fmt.Fprintf(writer,
+		"%5s %s",
+		updatedAt,
 		pr.Author.User.DisplayName,
 	)
 
 	refSegments := strings.Split(pr.FromRef.Id, "/")
 	branchName := refSegments[len(refSegments)-1]
-	fmt.Printf("%s", branchName)
+	fmt.Fprintf(writer, "\t%s\n", branchName)
 
 	if withDesc && pr.Description != "" {
-		desc := fmt.Sprintf("\n---\n%s\n---", pr.Description)
-		fmt.Println(desc)
+		fmt.Fprintln(writer, fmt.Sprintf("\n---\n%s\n---", pr.Description))
 	}
-
-	fmt.Println()
-
 }
 
 func parseUri(args map[string]interface{}) (

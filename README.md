@@ -132,7 +132,8 @@ Then specify this shiny new executable (do not forget to `chmod +x` it) as
 
 ### Using emacs
 
-For simple integration emacs with ash see https://github.com/s-kostyaev/ash.el
+For simple integration emacs with ash see https://github.com/s-kostyaev/ash.el.
+But [helm](https://github.com/s-kostyaev/helm-ash) interface is now recommended.
 
 Running ash
 -----------

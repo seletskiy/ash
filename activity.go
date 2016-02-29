@@ -206,10 +206,10 @@ func (rr *reviewActionRescoped) UnmarshalJSON(data []byte) error {
 		PreviousToHash   string
 		ToHash           string
 		Added            struct {
-			Changesets []rescopedChangeset
+			Commits []rescopedChangeset
 		}
 		Removed struct {
-			Changesets []rescopedChangeset
+			Commits []rescopedChangeset
 		}
 	}{}
 
@@ -222,8 +222,8 @@ func (rr *reviewActionRescoped) UnmarshalJSON(data []byte) error {
 		Data   []rescopedChangeset
 		Prefix string
 	}{
-		{value.Added.Changesets, "+"},
-		{value.Removed.Changesets, "-"},
+		{value.Added.Commits, "+"},
+		{value.Removed.Commits, "-"},
 	}
 
 	header, err := tplutil.ExecuteToString(updatedHeaderTpl, struct {

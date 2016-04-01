@@ -106,6 +106,7 @@ func (api Api) doRequest(
 	res *gopencils.Resource,
 	doFunc func() (*gopencils.Resource, error),
 ) error {
+	res.SetHeader("X-Atlassian-Token", "no-check")
 	resp, err := doFunc()
 	if err != nil {
 		return err

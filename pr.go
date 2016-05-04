@@ -131,8 +131,18 @@ func (pr *PullRequest) Approve() error {
 }
 
 func (pr *PullRequest) Decline() error {
+	info, err := pr.GetInfo()
+	if err != nil {
+		return err
+	}
+
+	query := map[string]string{
+		"version": fmt.Sprint(info.Version),
+	}
+
 	resource := make(map[string]interface{})
-	return pr.DoPost(pr.Resource.Res("decline", &resource))
+
+	return pr.DoPost(pr.Resource.Res("decline", &resource).SetQuery(query))
 }
 
 func (pr *PullRequest) Merge() error {

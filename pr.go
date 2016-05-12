@@ -53,8 +53,8 @@ type PullRequest struct {
 		}
 	}
 
-	Attributes struct {
-		CommentCount []string
+	Properties struct {
+		CommentCount int64
 	}
 }
 

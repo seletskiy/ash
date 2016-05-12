@@ -391,11 +391,7 @@ func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStat
 
 	fmt.Fprintf(writer, "%-30s\t", textId)
 
-	if len(pr.Attributes.CommentCount) != 0 {
-		fmt.Fprintf(writer, "(%3s) ", pr.Attributes.CommentCount[0])
-	} else {
-		fmt.Fprintf(writer, "(  0) ")
-	}
+	fmt.Fprintf(writer, "(%3d) ", pr.Properties.CommentCount)
 
 	var approvedCount int
 	var pendingReviewers []string

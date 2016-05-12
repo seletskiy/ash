@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime/debug"
+	"sort"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -383,32 +384,17 @@ func showReviewsInRepo(repo Repo, state string, withDesc bool) {
 }
 
 func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStatus bool) {
-	textId := fmt.Sprintf("%s/%s/%d",
+	slug := fmt.Sprintf("%s/%s/%d",
 		strings.ToLower(pr.FromRef.Repository.Project.Key),
 		pr.FromRef.Repository.Slug,
 		pr.Id,
 	)
 
-	fmt.Fprintf(writer, "%-30s\t", textId)
+	fmt.Fprintf(writer, "%-30s", slug)
 
-	if len(pr.Attributes.CommentCount) != 0 {
-		fmt.Fprintf(writer, "(%3s) ", pr.Attributes.CommentCount[0])
-	} else {
-		fmt.Fprintf(writer, "(  0) ")
-	}
-
-	approvedCount := 0
-	for _, reviewer := range pr.Reviewers {
-		if reviewer.Approved {
-			approvedCount += 1
-		}
-	}
-
-	fmt.Fprintf(writer, "+%d/%d ", approvedCount, len(pr.Reviewers))
-
-	if printStatus {
-		fmt.Fprintf(writer, "%s ", pr.State)
-	}
+	refSegments := strings.Split(pr.FromRef.Id, "/")
+	branchName := refSegments[len(refSegments)-1]
+	fmt.Fprintf(writer, "\t%s", branchName)
 
 	relativeUpdateDate := time.Since(pr.UpdatedDate.AsTime())
 
@@ -431,14 +417,34 @@ func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStat
 	}
 
 	fmt.Fprintf(writer,
-		"%5s %s",
+		"\t%5s %s",
 		updatedAt,
-		pr.Author.User.DisplayName,
+		pr.Author.User.Name,
 	)
 
-	refSegments := strings.Split(pr.FromRef.Id, "/")
-	branchName := refSegments[len(refSegments)-1]
-	fmt.Fprintf(writer, "\t%s\n", branchName)
+	var approvedCount int
+	var pendingReviewers []string
+	for _, reviewer := range pr.Reviewers {
+		if reviewer.Approved {
+			approvedCount += 1
+		} else {
+			pendingReviewers = append(pendingReviewers, reviewer.User.Name)
+		}
+	}
+
+	fmt.Fprintf(
+		writer,
+		"\t%3d +%d/%d",
+		pr.Properties.CommentCount, approvedCount, len(pr.Reviewers),
+	)
+
+	if printStatus {
+		fmt.Fprintf(writer, " %s", pr.State)
+	}
+
+	sort.Strings(pendingReviewers)
+
+	fmt.Fprintf(writer, "\t%s\n", strings.Join(pendingReviewers, " "))
 
 	if withDesc && pr.Description != "" {
 		fmt.Fprintln(writer, fmt.Sprintf("\n---\n%s\n---", pr.Description))

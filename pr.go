@@ -42,16 +42,20 @@ type PullRequest struct {
 
 	Author struct {
 		User struct {
+			Name        string
 			DisplayName string
 		}
 	}
 
 	Reviewers []struct {
 		Approved bool
+		User     struct {
+			Name string
+		}
 	}
 
-	Attributes struct {
-		CommentCount []string
+	Properties struct {
+		CommentCount int64
 	}
 }
 

@@ -419,7 +419,7 @@ func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStat
 	fmt.Fprintf(writer,
 		"\t%5s %s",
 		updatedAt,
-		pr.Author.User.DisplayName,
+		pr.Author.User.Name,
 	)
 
 	var approvedCount int

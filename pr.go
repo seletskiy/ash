@@ -42,6 +42,7 @@ type PullRequest struct {
 
 	Author struct {
 		User struct {
+			Name        string
 			DisplayName string
 		}
 	}

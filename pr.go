@@ -48,6 +48,9 @@ type PullRequest struct {
 
 	Reviewers []struct {
 		Approved bool
+		User     struct {
+			Name string
+		}
 	}
 
 	Attributes struct {

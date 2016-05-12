@@ -397,10 +397,13 @@ func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStat
 		fmt.Fprintf(writer, "(  0) ")
 	}
 
-	approvedCount := 0
+	var approvedCount int
+	var pendingReviewers []string
 	for _, reviewer := range pr.Reviewers {
 		if reviewer.Approved {
 			approvedCount += 1
+		} else {
+			pendingReviewers = append(pendingReviewers, reviewer.User.Name)
 		}
 	}
 
@@ -438,7 +441,9 @@ func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStat
 
 	refSegments := strings.Split(pr.FromRef.Id, "/")
 	branchName := refSegments[len(refSegments)-1]
-	fmt.Fprintf(writer, "\t%s\n", branchName)
+	fmt.Fprintf(writer, "\t%s", branchName)
+
+	fmt.Fprintf(writer, "\t%s\n", strings.Join(pendingReviewers, " "))
 
 	if withDesc && pr.Description != "" {
 		fmt.Fprintln(writer, fmt.Sprintf("\n---\n%s\n---", pr.Description))

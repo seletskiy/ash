@@ -644,7 +644,7 @@ func review(
 		}
 
 		if review == nil {
-			fmt.Println("Pull request not found")
+			fmt.Fprintln(os.Stderr, "Pull request not found.")
 			os.Exit(1)
 		}
 

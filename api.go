@@ -113,10 +113,10 @@ func (api Api) doRequest(
 	}
 
 	if err := checkErrorStatus(resp); err != nil {
-		logger.Warning("Stash returned error code: %d", resp.Raw.StatusCode)
+		logger.Warningf("Stash returned error code: %d", resp.Raw.StatusCode)
 		return err
 	} else {
-		logger.Debug("Stash returned status code: %d", resp.Raw.StatusCode)
+		logger.Debugf("Stash returned status code: %d", resp.Raw.StatusCode)
 	}
 
 	return nil

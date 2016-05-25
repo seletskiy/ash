@@ -643,6 +643,11 @@ func review(
 			review, err = pr.GetReview(path, ignoreWhitespaces)
 		}
 
+		if review == nil {
+			fmt.Println("Pull request not found")
+			os.Exit(1)
+		}
+
 		if len(review.changeset.Diffs) == 0 {
 			fmt.Println("Specified file is not found in pull request.")
 			os.Exit(1)

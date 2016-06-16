@@ -251,7 +251,7 @@ func requestInboxFor(role string, api Api) chan []PullRequest {
 	go func() {
 		reviews, err := api.GetInbox(role)
 		if err != nil {
-			logger.Critical(
+			logger.Criticalf(
 				"error retrieving inbox for '%s': %s",
 				role,
 				err.Error(),
@@ -324,7 +324,7 @@ func approve(pr PullRequest) {
 	logger.Debug("Approving pr")
 	err := pr.Approve()
 	if err != nil {
-		logger.Critical("error approving: %s", err.Error())
+		logger.Criticalf("error approving: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -335,7 +335,7 @@ func decline(pr PullRequest) {
 	logger.Debug("Declining pr")
 	err := pr.Decline()
 	if err != nil {
-		logger.Critical("error declining: %s", err.Error())
+		logger.Criticalf("error declining: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -346,7 +346,7 @@ func merge(pr PullRequest) {
 	logger.Debug("Merging pr")
 	err := pr.Merge()
 	if err != nil {
-		logger.Critical("error merging: %s", err.Error())
+		logger.Criticalf("error merging: %s", err.Error())
 		os.Exit(1)
 	}
 
@@ -371,7 +371,7 @@ func showReviewsInRepo(repo Repo, state string, withDesc bool) {
 	reviews, err := repo.ListPullRequest(state)
 
 	if err != nil {
-		logger.Critical("can not list reviews: %s", err.Error())
+		logger.Criticalf("can not list reviews: %s", err.Error())
 	}
 
 	writer := tabwriter.NewWriter(os.Stdout, 0, 8, 1, ' ', 0)
@@ -774,7 +774,7 @@ func review(
 		logger.Debug("change payload: %#v", change.GetPayload())
 		err := pr.ApplyChange(change)
 		if err != nil {
-			logger.Critical("can not apply change: %s", err.Error())
+			logger.Criticalf("can not apply change: %s", err.Error())
 		}
 	}
 }

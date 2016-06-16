@@ -159,7 +159,9 @@ func (pr *PullRequest) Merge() error {
 		"version": fmt.Sprint(info.Version),
 	}
 
-	return pr.DoPost(pr.Resource.Res("merge").SetQuery(query))
+	resource := make(map[string]interface{})
+
+	return pr.DoPost(pr.Resource.Res("merge", &resource).SetQuery(query))
 }
 
 func (pr *PullRequest) GetActivities(limit string) (*Review, error) {

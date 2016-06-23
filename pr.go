@@ -29,6 +29,7 @@ type PullRequest struct {
 	Description string
 	State       string
 	UpdatedDate UnixTimestamp
+	ReviewFiles ReviewFiles
 
 	FromRef struct {
 		Id         string
@@ -189,21 +190,25 @@ func (pr *PullRequest) GetActivities(limit string) (*Review, error) {
 }
 
 func (pr *PullRequest) GetFiles() (ReviewFiles, error) {
-	files := make(ReviewFiles, 0)
+	if len(pr.ReviewFiles) > 0 {
+		return pr.ReviewFiles, nil
+	}
+
+	pr.ReviewFiles = make(ReviewFiles, 0)
 
 	query := map[string]string{
 		"start": "0",
 		"limit": "1000",
 	}
 
-	err := pr.DoGet(pr.Resource.Res("changes", &files), query)
+	err := pr.DoGet(pr.Resource.Res("changes", &pr.ReviewFiles), query)
 	if err != nil {
 		return nil, err
 	}
 
 	logger.Debug("successfully got files list from Stash")
 
-	return files, nil
+	return pr.ReviewFiles, nil
 }
 
 func (pr *PullRequest) ApplyChange(change ReviewChange) error {

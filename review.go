@@ -180,6 +180,17 @@ func ReadReview(r io.Reader) (*Review, error) {
 	}, nil
 }
 
+func (r *Review) AddComment(comment string) {
+	r.changeset.Diffs = append(
+		[]*godiff.Diff{
+			&godiff.Diff{
+				Note: comment,
+			},
+		},
+		r.changeset.Diffs...,
+	)
+}
+
 func AddUsageComment(r *Review) {
 	r.changeset.Diffs = append(
 		[]*godiff.Diff{

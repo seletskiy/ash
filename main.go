@@ -721,6 +721,13 @@ func review(
 			writeAndExit = true
 		}
 
+		files, err := pr.GetFiles()
+		if err != nil {
+			logger.Fatal(err)
+		}
+
+		review.AddComment(files.String())
+
 		fileToUse, err = WriteReviewToFile(
 			pullRequestInfo.Links.Self[0].Href, review, output,
 		)

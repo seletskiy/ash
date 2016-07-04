@@ -385,14 +385,14 @@ func showReviewsInRepo(repo Repo, state string, withDesc bool) {
 
 func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStatus bool) {
 	slug := fmt.Sprintf("%s/%s/%d",
-		strings.ToLower(pr.FromRef.Repository.Project.Key),
-		pr.FromRef.Repository.Slug,
+		strings.ToLower(pr.ToRef.Repository.Project.Key),
+		pr.ToRef.Repository.Slug,
 		pr.Id,
 	)
 
 	fmt.Fprintf(writer, "%-30s", slug)
 
-	refSegments := strings.Split(pr.FromRef.Id, "/")
+	refSegments := strings.Split(pr.ToRef.Id, "/")
 	branchName := refSegments[len(refSegments)-1]
 	fmt.Fprintf(writer, "\t%s", branchName)
 

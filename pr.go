@@ -41,6 +41,16 @@ type PullRequest struct {
 		}
 	}
 
+	ToRef struct {
+		Id         string
+		Repository struct {
+			Slug    string
+			Project struct {
+				Key string
+			}
+		}
+	}
+
 	Author struct {
 		User struct {
 			Name        string

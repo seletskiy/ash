@@ -800,8 +800,6 @@ func WriteReviewToFile(
 
 	AddAshModeline(url, review)
 
-	AddUsageComment(review)
-
 	WriteReview(review, fileToUse)
 
 	fileToUse.Sync()

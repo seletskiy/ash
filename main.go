@@ -392,7 +392,7 @@ func printPullRequest(writer io.Writer, pr PullRequest, withDesc bool, printStat
 
 	fmt.Fprintf(writer, "%-30s", slug)
 
-	refSegments := strings.Split(pr.ToRef.Id, "/")
+	refSegments := strings.Split(pr.FromRef.Id, "/")
 	branchName := refSegments[len(refSegments)-1]
 	fmt.Fprintf(writer, "\t%s", branchName)
 

@@ -94,15 +94,17 @@ Options:
   -i                 Interactive mode. Ask before commiting changes.
   --debug=<level>    Verbosity [default: 0].
   --url=<url>        Stash server URL.  http:// will be used if no protocol is
-                     specified.
+                      specified.
   --input=<input>    File for loading diff in review file
   --output=<output>  Output review to specified file. Editor is ignored.
   --origin=<origin>  Do not download review from stash and use specified file
-                     instead.
+                      instead.
   --project=<proj>   Use to specify default project that can be used when
-                     serching pull requests. Can be set in either <project> or
-                     <project>/<repo> format.
+                      serching pull requests. Can be set in either <project> or
+                      <project>/<repo> format.
   --no-color         Do not use color in output.
+  --reset-colors     Start with terminal style-reset sequence. Most useful with
+                      vim.
 `
 
 	args, err := docopt.Parse(help, cmd, true, "1.3", false, false)
@@ -131,6 +133,10 @@ func main() {
 	args, err := parseCmdLine(rawArgs)
 	if err != nil {
 		logger.Critical(err.Error())
+	}
+
+	if args["--reset-colors"].(bool) {
+		fmt.Print("\x1b[0m")
 	}
 
 	tmpWorkDir, err = ioutil.TempDir(os.TempDir(), "ash.")
